@@ -85,11 +85,14 @@ export default function Home() {
   };
 
   return (
-    <main className="relative min-h-screen bg-[#0b0f19] text-white overflow-hidden selection:bg-purple-500 selection:text-white">
-      {/* BACKGROUND ANIMATED GLOW ORBS */}
-      <div className="absolute top-0 -left-4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob pointer-events-none"></div>
-      <div className="absolute top-0 -right-4 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000 pointer-events-none"></div>
-      <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000 pointer-events-none"></div>
+    <main className="relative min-h-screen bg-[#080c14] text-white overflow-hidden selection:bg-purple-500 selection:text-white">
+      {/* --- 1. ANIMATED GRID OVERLAY --- */}
+      <div className="absolute inset-0 bg-grid-pattern pointer-events-none z-0"></div>
+
+      {/* --- 2. FLOATING GLOWING AMBIENT LIGHT ORBS --- */}
+      <div className="absolute top-[-10%] left-[-5%] w-[500px] h-[500px] bg-purple-600/30 rounded-full mix-blend-screen filter blur-[120px] animate-blob pointer-events-none"></div>
+      <div className="absolute top-[20%] right-[-5%] w-[500px] h-[500px] bg-blue-600/30 rounded-full mix-blend-screen filter blur-[120px] animate-blob animation-delay-2000 pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-600/25 rounded-full mix-blend-screen filter blur-[140px] animate-blob animation-delay-4000 pointer-events-none"></div>
 
       {/* NAVIGATION BAR */}
       <nav className="relative z-10 max-w-7xl mx-auto px-6 py-6 flex justify-between items-center border-b border-gray-800/60 backdrop-blur-md">

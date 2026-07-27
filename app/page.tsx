@@ -170,7 +170,7 @@ export default function Home() {
                     {tpl.category}
                   </span>
                   <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
-                    ${tpl.price_monthly}/mo
+                    ${tpl.price_monthly || 12}/mo
                   </span>
                 </div>
 

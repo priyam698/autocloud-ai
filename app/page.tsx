@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { User } from '@supabase/supabase-js';
 
 interface Template {
   id: string;
@@ -14,8 +15,10 @@ interface Template {
 export default function Home() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
+    // 1. Fetch Templates from Supabase
     async function fetchTemplates() {
       const { data, error } = await supabase.from('templates').select('*');
       if (!error && data) {
@@ -23,8 +26,42 @@ export default function Home() {
       }
     }
     fetchTemplates();
+
+    // 2. Check Active Auth Session
+    async function getUserSession() {
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user ?? null);
+    }
+    getUserSession();
+
+    // 3. Listen for Auth State Changes
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
+  // --- SIGN IN WITH GITHUB ---
+  const handleSignIn = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: `${window.location.origin}`,
+      },
+    });
+    if (error) alert(`Sign in error: ${error.message}`);
+  };
+
+  // --- SIGN OUT ---
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  // --- CHECKOUT REDIRECT ---
   const handleDeploy = async (templateName: string) => {
     setLoading(templateName);
     try {
@@ -49,12 +86,12 @@ export default function Home() {
 
   return (
     <main className="relative min-h-screen bg-[#0b0f19] text-white overflow-hidden selection:bg-purple-500 selection:text-white">
-      {/* --- BACKGROUND ANIMATED GLOW ORBS --- */}
+      {/* BACKGROUND ANIMATED GLOW ORBS */}
       <div className="absolute top-0 -left-4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob pointer-events-none"></div>
       <div className="absolute top-0 -right-4 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000 pointer-events-none"></div>
       <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000 pointer-events-none"></div>
 
-      {/* --- NAVIGATION BAR --- */}
+      {/* NAVIGATION BAR */}
       <nav className="relative z-10 max-w-7xl mx-auto px-6 py-6 flex justify-between items-center border-b border-gray-800/60 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
@@ -66,21 +103,41 @@ export default function Home() {
             AutoCloud AI
           </span>
         </div>
+
         <div className="flex items-center gap-4">
           <span className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
             Cloud Engine Online
           </span>
-          <button className="px-5 py-2.5 rounded-xl font-medium text-sm bg-gray-800/80 hover:bg-gray-700 border border-gray-700/80 transition-all duration-200 hover:shadow-lg hover:shadow-gray-800/50">
-            Sign In
-          </button>
+
+          {/* DYNAMIC AUTH BUTTON */}
+          {user ? (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-300 bg-gray-800/80 px-3 py-1.5 rounded-lg border border-gray-700/80">
+                {user.email || user.user_metadata?.full_name || 'Logged In'}
+              </span>
+              <button
+                onClick={handleSignOut}
+                className="px-4 py-2 rounded-xl font-medium text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all duration-200"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleSignIn}
+              className="px-5 py-2.5 rounded-xl font-medium text-sm bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg shadow-purple-600/20 transition-all duration-200"
+            >
+              Sign In
+            </button>
+          )}
         </div>
       </nav>
 
-      {/* --- HERO SECTION --- */}
+      {/* HERO SECTION */}
       <section className="relative z-10 max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/30 mb-8 backdrop-blur-md animate-bounce">
-          <span>✨ 1-Click Production Hosting</span>
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/30 mb-8 backdrop-blur-md">
+          <span>⚡ 1-Click Production Hosting</span>
         </div>
 
         <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight mb-8">
@@ -95,7 +152,7 @@ export default function Home() {
         </p>
       </section>
 
-      {/* --- TEMPLATES SECTION --- */}
+      {/* TEMPLATES SECTION */}
       <section className="relative z-10 max-w-6xl mx-auto px-6 pb-28">
         <h2 className="text-2xl font-bold mb-8 flex items-center gap-2 text-gray-200">
           <span>⚡ Choose a Template to Deploy</span>

@@ -2,130 +2,153 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Rocket, Server, ExternalLink, Loader2 } from 'lucide-react';
 
 interface Template {
   id: string;
   name: string;
   description: string;
   category: string;
-  monthly_price: number;
+  price_monthly: number;
 }
 
 export default function Home() {
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deployingId, setDeployingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchTemplates() {
       const { data, error } = await supabase.from('templates').select('*');
-      if (error) {
-        console.error('Error fetching templates:', error);
-      } else {
-        setTemplates(data || []);
+      if (!error && data) {
+        setTemplates(data);
       }
-      setLoading(false);
     }
     fetchTemplates();
   }, []);
 
-  const handleDeploy = async (template: Template) => {
-    setDeployingId(template.id);
+  const handleDeploy = async (templateName: string) => {
+    setLoading(templateName);
     try {
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateName: template.name,
-          price: template.monthly_price,
-        }),
+        body: JSON.stringify({ templateName }),
       });
 
       const data = await response.json();
       if (data.url) {
-        window.location.href = data.url; // Redirect to Lemon Squeezy Checkout
+        window.location.href = data.url;
       } else {
-        alert('Payment setup error: ' + (data.error || 'Check Lemon Squeezy keys in .env.local'));
+        alert(data.error || 'Failed to create checkout session');
+        setLoading(null);
       }
     } catch (err) {
-      console.error(err);
-      alert('Failed to initiate checkout.');
-    } finally {
-      setDeployingId(null);
+      alert('Network error. Please try again.');
+      setLoading(null);
     }
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50 p-8">
-      {/* Header */}
-      <header className="max-w-6xl mx-auto flex justify-between items-center pb-8 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <Server className="text-indigo-500 w-8 h-8" />
-          <span className="text-xl font-bold tracking-wide">AutoCloud AI</span>
-        </div>
-        <button className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium transition">
-          Sign In
-        </button>
-      </header>
+    <main className="relative min-h-screen bg-[#0b0f19] text-white overflow-hidden selection:bg-purple-500 selection:text-white">
+      {/* --- BACKGROUND ANIMATED GLOW ORBS --- */}
+      <div className="absolute top-0 -left-4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob pointer-events-none"></div>
+      <div className="absolute top-0 -right-4 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000 pointer-events-none"></div>
+      <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000 pointer-events-none"></div>
 
-      {/* Hero Section */}
-      <section className="max-w-4xl mx-auto text-center py-16">
-        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4">
-          Deploy 24/7 AI Agents & Automation in <span className="text-indigo-400">One Click</span>
+      {/* --- NAVIGATION BAR --- */}
+      <nav className="relative z-10 max-w-7xl mx-auto px-6 py-6 flex justify-between items-center border-b border-gray-800/60 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <span className="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-purple-400">
+            AutoCloud AI
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            Cloud Engine Online
+          </span>
+          <button className="px-5 py-2.5 rounded-xl font-medium text-sm bg-gray-800/80 hover:bg-gray-700 border border-gray-700/80 transition-all duration-200 hover:shadow-lg hover:shadow-gray-800/50">
+            Sign In
+          </button>
+        </div>
+      </nav>
+
+      {/* --- HERO SECTION --- */}
+      <section className="relative z-10 max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/30 mb-8 backdrop-blur-md animate-bounce">
+          <span>✨ 1-Click Production Hosting</span>
+        </div>
+
+        <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight mb-8">
+          Deploy 24/7 AI Agents & <br />
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400">
+            Automation in One Click
+          </span>
         </h1>
-        <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-8">
-          Instant production hosting for n8n workflows, Telegram AI bots, and custom Python agents. No server setup required.
+
+        <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto font-normal leading-relaxed mb-10">
+          Instant background execution for n8n workflows, Telegram AI bots, and custom Python agents. Zero server configuration or terminal setup required.
         </p>
       </section>
 
-      {/* Template Marketplace */}
-      <section className="max-w-6xl mx-auto">
-        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-          <Rocket className="text-indigo-400" /> Choose a Template to Deploy
+      {/* --- TEMPLATES SECTION --- */}
+      <section className="relative z-10 max-w-6xl mx-auto px-6 pb-28">
+        <h2 className="text-2xl font-bold mb-8 flex items-center gap-2 text-gray-200">
+          <span>⚡ Choose a Template to Deploy</span>
         </h2>
 
-        {loading ? (
-          <p className="text-slate-500">Loading available templates from database...</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {templates.map((template) => (
-              <div 
-                key={template.id} 
-                className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col justify-between hover:border-indigo-500 transition"
-              >
-                <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-indigo-400 bg-indigo-950/50 px-2 py-1 rounded border border-indigo-800/50">
-                    {template.category}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {templates.map((tpl) => (
+            <div
+              key={tpl.id}
+              className="group relative rounded-2xl bg-gradient-to-b from-gray-900/90 to-gray-900/40 p-1 border border-gray-800/80 hover:border-purple-500/50 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20 backdrop-blur-xl flex flex-col justify-between"
+            >
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <span className="px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    {tpl.category}
                   </span>
-                  <h3 className="text-xl font-bold mt-4 mb-2">{template.name}</h3>
-                  <p className="text-slate-400 text-sm mb-6">{template.description}</p>
+                  <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
+                    ${tpl.price_monthly}/mo
+                  </span>
                 </div>
-                <div>
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-slate-500 text-xs uppercase">Est. Cost</span>
-                    <span className="text-lg font-bold text-emerald-400">${template.monthly_price}/mo</span>
-                  </div>
-                  <button 
-                    onClick={() => handleDeploy(template)}
-                    disabled={deployingId === template.id}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition disabled:opacity-50"
-                  >
-                    {deployingId === template.id ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Redirecting...
-                      </>
-                    ) : (
-                      <>
-                        Deploy Now <ExternalLink className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                </div>
+
+                <h3 className="text-xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors">
+                  {tpl.name}
+                </h3>
+                <p className="text-sm text-gray-400 leading-relaxed mb-6">
+                  {tpl.description}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
+
+              <div className="p-6 pt-0">
+                <button
+                  onClick={() => handleDeploy(tpl.name)}
+                  disabled={loading === tpl.name}
+                  className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg shadow-purple-600/30 hover:shadow-purple-500/50 transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading === tpl.name ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Redirecting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Deploy Now</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
     </main>
   );

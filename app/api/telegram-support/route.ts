@@ -12,9 +12,15 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userQuery = message.text;
 
-    // Call Gemini API using gemini-1.5-flash model
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      console.error('GEMINI_API_KEY is missing in environment variables');
+    }
+
+    // Call Gemini 1.5 Flash API with explicit prompt structuring
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -24,11 +30,7 @@ export async function POST(req: Request) {
               role: 'user',
               parts: [
                 {
-                  text: `You are the official 24/7 AI Technical Support Agent for AutoCloud AI ($12/mo platform hosting n8n, Telegram bots, and LangChain runners). 
-
-User Query: "${userQuery}"
-
-Answer the user's specific question directly, accurately, and uniquely in 2-3 friendly sentences. Do NOT give a generic template answer.`,
+                  text: `You are the official 24/7 AI Support Engineer for AutoCloud AI ($12/mo platform hosting n8n, Telegram bots, and LangChain agents). Answer this user query directly, concisely, and uniquely in 2-3 sentences: "${userQuery}"`,
                 },
               ],
             },
@@ -39,15 +41,15 @@ Answer the user's specific question directly, accurately, and uniquely in 2-3 fr
 
     const data = await geminiRes.json();
     
-    // Extract real Gemini response
+    // Safely extract generated text from Gemini
     const aiAnswer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    // Construct final message
-    const replyText = aiAnswer 
-      ? aiAnswer 
-      : `AutoCloud Support: We encountered an issue answering "${userQuery}". Please email support@autocloud.ai or try again!`;
 
-    // Send answer back to Telegram
+    // Build unique reply
+    const replyText = aiAnswer
+      ? aiAnswer
+      : `AutoCloud AI: We host n8n workflows, Telegram bots, and LangChain agents for $12/mo with 24/7 uptime. For detailed queries, email priyamrana069@gmail.com!`;
+
+    // Send response back to Telegram
     await fetch(
       `https://api.telegram.org/bot${process.env.TELEGRAM_SUPPORT_BOT_TOKEN}/sendMessage`,
       {
@@ -62,7 +64,7 @@ Answer the user's specific question directly, accurately, and uniquely in 2-3 fr
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Telegram Bot Error:', err);
+    console.error('Telegram Support Webhook Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

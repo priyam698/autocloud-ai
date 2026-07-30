@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
 
 export async function POST(req: Request) {
   try {
@@ -13,24 +12,37 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userQuery = message.text;
 
-    // Initialize official Google Gen AI client
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    // Generate dynamic response using gemini-2.5-flash
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `You are the official 24/7 AI Technical Support Engineer for AutoCloud AI ($12/mo platform hosting n8n, Telegram bots, and LangChain runners). 
+    // Call Gemini 2.5 Flash API directly via REST
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `You are the official 24/7 AI Technical Support Engineer for AutoCloud AI ($12/mo platform hosting n8n, Telegram bots, and LangChain runners). Answer this customer query directly, accurately, and uniquely in 2-3 friendly sentences: "${userQuery}"`,
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
 
-User Question: "${userQuery}"
+    const data = await geminiRes.json();
+    const aiAnswer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-Provide a direct, helpful, and unique answer to this specific question in 2-3 friendly sentences.`,
-    });
+    const replyText = aiAnswer
+      ? aiAnswer
+      : `AutoCloud AI: To connect your n8n workflow, go to your dashboard, grab your webhook URL, and paste it inside your n8n HTTP trigger node. Contact priyamrana069@gmail.com for help!`;
 
-    const replyText =
-      response.text ||
-      `AutoCloud AI Support: To connect your n8n workflow, open your dashboard, grab your webhook URL, and paste it inside your n8n HTTP trigger node.`;
-
-    // Send response back to Telegram
+    // Send answer back to Telegram
     await fetch(
       `https://api.telegram.org/bot${process.env.TELEGRAM_SUPPORT_BOT_TOKEN}/sendMessage`,
       {
@@ -45,7 +57,7 @@ Provide a direct, helpful, and unique answer to this specific question in 2-3 fr
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Telegram Bot Error:', err);
+    console.error('Telegram Bot Route Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

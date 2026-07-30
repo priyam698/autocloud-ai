@@ -12,11 +12,9 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userQuery = message.text;
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    // Call Gemini API
+    // Call Gemini API using gemini-1.5-flash model
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -26,7 +24,11 @@ export async function POST(req: Request) {
               role: 'user',
               parts: [
                 {
-                  text: `You are the official 24/7 AI Support Engineer for AutoCloud AI (a $12/mo platform hosting n8n, Telegram bots, and LangChain agents). Answer this user query clearly and concisely in 2-3 sentences: "${userQuery}"`,
+                  text: `You are the official 24/7 AI Technical Support Agent for AutoCloud AI ($12/mo platform hosting n8n, Telegram bots, and LangChain runners). 
+
+User Query: "${userQuery}"
+
+Answer the user's specific question directly, accurately, and uniquely in 2-3 friendly sentences. Do NOT give a generic template answer.`,
                 },
               ],
             },
@@ -36,12 +38,14 @@ export async function POST(req: Request) {
     );
 
     const data = await geminiRes.json();
-    let replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!replyText) {
-      console.error('Gemini API Error Response:', JSON.stringify(data));
-      replyText = "AutoCloud AI Support: Our $12/mo platform provides 1-click cloud hosting for n8n workflows, Telegram bots, and LangChain agents with 24/7 continuous uptime.";
-    }
+    
+    // Extract real Gemini response
+    const aiAnswer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    // Construct final message
+    const replyText = aiAnswer 
+      ? aiAnswer 
+      : `AutoCloud Support: We encountered an issue answering "${userQuery}". Please email support@autocloud.ai or try again!`;
 
     // Send answer back to Telegram
     await fetch(
@@ -58,7 +62,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Telegram Support Webhook Error:', err);
+    console.error('Telegram Bot Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

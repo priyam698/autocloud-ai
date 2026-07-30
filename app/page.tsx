@@ -142,14 +142,14 @@ export default function Home() {
       <nav className="relative z-10 border-b border-slate-800/80 bg-slate-950/60 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           
-          {/* Brand Logo */}
+          {/* Brand Logo with gemini-svg.png */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-cyan-400 p-[2px]">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                <span className="text-xl font-black bg-gradient-to-r from-purple-400 to-cyan-300 bg-clip-text text-transparent">
-                  ⚡
-                </span>
-              </div>
+            <div className="w-10 h-10 rounded-xl bg-slate-900/90 border border-slate-800 p-1 flex items-center justify-center overflow-hidden">
+              <img
+                src="/gemini-svg.png"
+                alt="AutoCloud AI Logo"
+                className="w-full h-full object-contain"
+              />
             </div>
             <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
               AutoCloud <span className="text-purple-400 font-extrabold">AI</span>

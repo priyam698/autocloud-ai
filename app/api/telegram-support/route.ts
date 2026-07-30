@@ -12,9 +12,9 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userQuery = message.text;
 
-    // Call Gemini API to generate instant 24/7 technical support
+    // Call Gemini 1.5 Flash API for instant 24/7 technical support
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
               role: 'user',
               parts: [
                 {
-                  text: `You are the official 24/7 AI Support Engineer for AutoCloud AI (a $12/mo platform hosting n8n, Telegram bots, and LangChain agents). Answer this user query clearly and concisely in 2-3 sentences: "${userQuery}"`,
+                  text: `You are the official 24/7 AI Support Engineer for AutoCloud AI (a $12/mo cloud platform hosting n8n, Telegram bots, and LangChain agents). Answer this customer query clearly, accurately, and politely in 2-3 sentences: "${userQuery}"`,
                 },
               ],
             },
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     const data = await geminiRes.json();
     const replyText =
       data.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Thanks for reaching out! Our team is reviewing your query.";
+      "Thanks for reaching out! Our support team is reviewing your query.";
 
     // Send answer back to Telegram
     await fetch(

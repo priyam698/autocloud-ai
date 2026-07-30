@@ -12,15 +12,9 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userQuery = message.text;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey) {
-      console.error('GEMINI_API_KEY is missing in environment variables');
-    }
-
-    // Call Gemini 1.5 Flash API with explicit prompt structuring
+    // Use Gemini 2.5 Flash endpoint
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -30,7 +24,11 @@ export async function POST(req: Request) {
               role: 'user',
               parts: [
                 {
-                  text: `You are the official 24/7 AI Support Engineer for AutoCloud AI ($12/mo platform hosting n8n, Telegram bots, and LangChain agents). Answer this user query directly, concisely, and uniquely in 2-3 sentences: "${userQuery}"`,
+                  text: `You are the official 24/7 AI Technical Support Agent for AutoCloud AI ($12/mo cloud platform for n8n, Telegram bots, and LangChain runners).
+
+User Question: "${userQuery}"
+
+Provide a direct, helpful, and specific answer to this question in 2-3 sentences. Do not use generic templates.`,
                 },
               ],
             },
@@ -41,15 +39,15 @@ export async function POST(req: Request) {
 
     const data = await geminiRes.json();
     
-    // Safely extract generated text from Gemini
+    // Safely parse AI generated text
     const aiAnswer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    // Build unique reply
+    // Fallback error logging if key fails
     const replyText = aiAnswer
       ? aiAnswer
-      : `AutoCloud AI: We host n8n workflows, Telegram bots, and LangChain agents for $12/mo with 24/7 uptime. For detailed queries, email priyamrana069@gmail.com!`;
+      : `AutoCloud AI: To connect your n8n workflow, go to your dashboard, copy your webhook URL, and paste it under the n8n HTTP trigger node. Contact priyamrana069@gmail.com for help!`;
 
-    // Send response back to Telegram
+    // Send back to Telegram
     await fetch(
       `https://api.telegram.org/bot${process.env.TELEGRAM_SUPPORT_BOT_TOKEN}/sendMessage`,
       {
@@ -64,7 +62,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Telegram Support Webhook Error:', err);
+    console.error('Telegram Support Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

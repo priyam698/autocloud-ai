@@ -1,3 +1,8 @@
+import dynamic from 'next/dynamic';
+
+const ThreeBackground = dynamic(() => import('@/app/components/ThreeBackground'), {
+  ssr: false,
+});
 'use client';
 
 import { useState, useEffect } from 'react';

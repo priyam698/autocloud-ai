@@ -1,60 +1,101 @@
 'use client';
 
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Points, PointMaterial } from '@react-three/drei';
-import { useState, useRef } from 'react';
-import * as THREE from 'three';
-
-function AnimatedParticles() {
-  const ref = useRef<THREE.Points>(null!);
-  
-  // Generate 2,000 3D particle positions inside a sphere
-  const [sphere] = useState(() => {
-    const coords = new Float32Array(2000 * 3);
-    for (let i = 0; i < 2000; i++) {
-      const u = Math.random();
-      const v = Math.random();
-      const theta = u * 2.0 * Math.PI;
-      const phi = Math.acos(2.0 * v - 1.0);
-      const r = Math.cbrt(Math.random()) * 2.5;
-
-      coords[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      coords[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      coords[i * 3 + 2] = r * Math.cos(phi);
-    }
-    return coords;
-  });
-
-  // Continuous 3D rotation animation
-  useFrame((state, delta) => {
-    if (ref.current) {
-      ref.current.rotation.x -= delta / 10;
-      ref.current.rotation.y -= delta / 15;
-    }
-  });
-
-  return (
-    <group rotation={[0, 0, Math.PI / 4]}>
-      <Points ref={ref} positions={sphere} stride={3} frustumCulled={false}>
-        <PointMaterial
-          transparent
-          color="#f43f5e"
-          size={0.008}
-          sizeAttenuation={true}
-          depthWrite={false}
-          opacity={0.6}
-        />
-      </Points>
-    </group>
-  );
-}
+import { useEffect, useRef } from 'react';
 
 export default function ThreeBackground() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    // Particle definition
+    interface Particle {
+      x: number;
+      y: number;
+      z: number;
+      radius: number;
+      vx: number;
+      vy: number;
+      color: string;
+    }
+
+    const numParticles = 120;
+    const particles: Particle[] = [];
+    const colors = ['#f43f5e', '#a855f7', '#3b82f6', '#f59e0b'];
+
+    for (let i = 0; i < numParticles; i++) {
+      particles.push({
+        x: (Math.random() - 0.5) * width * 1.5,
+        y: (Math.random() - 0.5) * height * 1.5,
+        z: Math.random() * width,
+        radius: Math.random() * 2 + 1,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+      });
+    }
+
+    const handleResize = () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    const render = () => {
+      ctx.fillStyle = '#0d0f12';
+      ctx.fillRect(0, 0, width, height);
+
+      const cx = width / 2;
+      const cy = height / 2;
+
+      particles.forEach((p) => {
+        p.z -= 0.8;
+        if (p.z <= 0) p.z = width;
+
+        p.x += p.vx;
+        p.y += p.vy;
+
+        const k = 256 / p.z;
+        const px = p.x * k + cx;
+        const py = p.y * k + cy;
+
+        if (px >= 0 && px <= width && py >= 0 && py <= height) {
+          const size = Math.max(0.5, (1 - p.z / width) * p.radius * 2.5);
+          const alpha = Math.min(1, Math.max(0.1, 1 - p.z / width));
+
+          ctx.beginPath();
+          ctx.arc(px, py, size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = alpha;
+          ctx.fill();
+        }
+      });
+
+      ctx.globalAlpha = 1;
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
   return (
-    <div className="absolute inset-0 z-0 pointer-events-none opacity-80">
-      <Canvas camera={{ position: [0, 0, 1] }}>
-        <AnimatedParticles />
-      </Canvas>
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="fixed inset-0 pointer-events-none z-0 opacity-60"
+    />
   );
 }

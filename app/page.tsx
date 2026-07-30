@@ -123,7 +123,8 @@ export default function Home() {
       {/* GLOWING AMBIENT BACKGROUND */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-rose-500/15 via-purple-600/10 to-transparent rounded-full blur-[140px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-amber-500/10 rounded-full blur-[160px]" />
+        <div className="absolute top-[40%] right-[-10%] w-[600px] h-[600px] bg-amber-500/10 rounded-full blur-[160px]" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[160px]" />
       </div>
 
       {/* FLOATING PILL NAVBAR */}
@@ -145,9 +146,9 @@ export default function Home() {
           {/* Center Links */}
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
             <a href="#templates" className="hover:text-white transition-colors">Bot Library</a>
+            <a href="#why-us" className="hover:text-white transition-colors">Why Choose Us</a>
             <a href="#templates" className="hover:text-white transition-colors">Pricing</a>
-            <a href="https://t.me/AutoCloudSupportBot" target="_blank" className="hover:text-white transition-colors">Docs</a>
-            <a href="mailto:priyamrana069@gmail.com" className="hover:text-white transition-colors">Support</a>
+            <a href="https://t.me/AutoCloudSupportBot" target="_blank" className="hover:text-white transition-colors">24/7 Docs</a>
           </div>
 
           {/* User Auth Button */}
@@ -177,14 +178,12 @@ export default function Home() {
       </div>
 
       {/* HERO SECTION */}
-      <section className="relative z-10 max-w-4xl mx-auto px-4 pt-20 pb-12 text-center">
-        {/* Top Badge */}
+      <section className="relative z-10 max-w-4xl mx-auto px-4 pt-20 pb-16 text-center">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-950/60 border border-purple-800/40 text-purple-300 text-xs font-semibold mb-8 backdrop-blur-md">
           <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
           1-Click Production Agent Hosting
         </div>
 
-        {/* Hero Heading */}
         <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-[1.15] mb-6 text-white">
           Deploy 24/7 AI Agents & <br />
           <span className="bg-gradient-to-r from-rose-400 via-purple-300 to-amber-300 bg-clip-text text-transparent">
@@ -192,12 +191,10 @@ export default function Home() {
           </span>
         </h1>
 
-        {/* Subtitle */}
         <p className="text-base sm:text-lg text-slate-400 max-w-xl mx-auto leading-relaxed mb-10">
           Instant background execution for n8n workflows, Telegram AI bots, and custom Python agents. Zero Linux terminal setup needed.
         </p>
 
-        {/* Action Buttons */}
         <div className="flex flex-wrap items-center justify-center gap-4">
           <a
             href="#templates"
@@ -216,8 +213,62 @@ export default function Home() {
         </div>
       </section>
 
+      {/* WHY CHOOSE US / KEY ADVANTAGES SECTION */}
+      <section id="why-us" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-800/50">
+        <div className="text-center mb-12">
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-4">
+            Why Choose <span className="bg-gradient-to-r from-rose-400 to-amber-300 bg-clip-text text-transparent">AutoCloud AI</span>
+          </h2>
+          <p className="text-slate-400 text-sm max-w-xl mx-auto">
+            Eliminate server maintenance fatigue, scale AI workflows seamlessly, and run persistent 24/7 background agents at half the price.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Advantage 1 */}
+          <div className="bg-[#13161c]/80 backdrop-blur-xl border border-slate-800/90 hover:border-rose-500/40 rounded-2xl p-6 transition-all group">
+            <div className="w-10 h-10 rounded-xl bg-rose-950/60 border border-rose-800/40 text-rose-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+              ⚡
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">Zero Terminal Setup</h3>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              Forget SSH keys, Docker commands, or SSL certificates. Select a pre-configured template and launch in under 30 seconds.
+            </p>
+          </div>
+
+          {/* Advantage 2 */}
+          <div className="bg-[#13161c]/80 backdrop-blur-xl border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-6 transition-all group">
+            <div className="w-10 h-10 rounded-xl bg-amber-950/60 border border-amber-800/40 text-amber-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+              🛡️
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">Uncapped 24/7 Uptime</h3>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              Unlike official cloud tiers with strict execution caps, AutoCloud AI provides continuous background execution without artificial limits.
+            </p>
+          </div>
+
+          {/* Advantage 3 */}
+          <div className="bg-[#13161c]/80 backdrop-blur-xl border border-slate-800/90 hover:border-purple-500/40 rounded-2xl p-6 transition-all group">
+            <div className="w-10 h-10 rounded-xl bg-purple-950/60 border border-purple-800/40 text-purple-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
+              🧪
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">Flat $12/mo Pricing</h3>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              Save up to 50% compared to official $24/mo hosting plans. Transparent monthly billing with zero surprise usage spikes.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* TEMPLATE MARKETPLACE SECTION */}
-      <section id="templates" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pb-24 pt-8">
+      <section id="templates" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pb-24 pt-8 border-t border-slate-800/50">
+        <div className="text-center mb-12">
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-3">
+            Deployable Agent Library
+          </h2>
+          <p className="text-slate-400 text-sm">Select an instance below to spin up your 24/7 background worker.</p>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {templates.map((tpl, index) => {
             const icons = ['⚡', '🛡️', '🧪'];
@@ -233,19 +284,16 @@ export default function Home() {
                 className="group bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 hover:border-slate-700 rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-500/5 flex flex-col justify-between"
               >
                 <div>
-                  {/* Category Pill Badge */}
                   <div className="mb-6">
                     <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider bg-purple-950/80 px-3 py-1 rounded-full border border-purple-800/40">
                       {tpl.category}
                     </span>
                   </div>
 
-                  {/* Icon Box */}
                   <div className={`w-10 h-10 rounded-xl border flex items-center justify-center text-lg mb-5 ${iconBg[index % 3]}`}>
                     {icons[index % 3]}
                   </div>
 
-                  {/* Title & Description */}
                   <h3 className="text-xl font-bold text-white mb-2 group-hover:text-rose-300 transition-colors">
                     {tpl.name}
                   </h3>
@@ -254,7 +302,6 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Price & Action Button */}
                 <div>
                   <div className="flex items-baseline justify-between mb-4 border-t border-slate-800/80 pt-4">
                     <span className="text-xs font-medium text-slate-400">Hosting</span>

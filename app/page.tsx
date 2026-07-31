@@ -24,6 +24,7 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Load user session & templates from Supabase
   useEffect(() => {
     async function loadData() {
       try {
@@ -256,24 +257,40 @@ export default function Home() {
         </div>
       </section>
 
-      {/* HOW IT WORKS / USER GUIDE SECTION */}
+      {/* HOW IT WORKS & VIDEO WALKTHROUGH SECTION */}
       <section id="user-manual" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-800/50">
         <div className="text-center mb-12">
           <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest bg-rose-950/60 border border-rose-800/40 px-3 py-1 rounded-full">
-            3-Step Quickstart
+            Setup Guide & Demo
           </span>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white mt-4 mb-3">
             How AutoCloud AI Works
           </h2>
           <p className="text-slate-400 text-sm max-w-xl mx-auto">
-            Hosting your AI bots and workflows takes less than 1 minute.
+            Watch the video walkthrough or follow the 3 simple steps below.
           </p>
         </div>
 
-        {/* Super Clear 3 Step Process */}
+        {/* Embedded Video Walkthrough Frame */}
+        <div className="mb-12 bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl overflow-hidden p-2 sm:p-4 shadow-2xl max-w-4xl mx-auto">
+          <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-800">
+            <iframe
+              className="w-full h-full"
+              src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?controls=1"
+              title="AutoCloud AI Video Manual"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-3 text-xs text-slate-400">
+            <span>🎥 <b>Video Guide:</b> Instant 1-Click Agent Deployment</span>
+            <span className="text-rose-400 font-semibold">Zero Coding Required</span>
+          </div>
+        </div>
+
+        {/* 3 Step Quickstart Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Step 1 */}
-          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden">
+          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6">
             <div className="text-3xl mb-4">1️⃣</div>
             <h3 className="text-xl font-bold text-white mb-2">Pick Your Bot</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
@@ -281,21 +298,19 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Step 2 */}
-          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden">
+          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6">
             <div className="text-3xl mb-4">2️⃣</div>
             <h3 className="text-xl font-bold text-white mb-2">Click Deploy</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Click the <b>Deploy Instance</b> button and complete the secure $12/month checkout. No credit card surprises.
+              Click the <b>Deploy Instance</b> button and complete the secure $12/month checkout via Lemon Squeezy.
             </p>
           </div>
 
-          {/* Step 3 */}
-          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden">
+          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6">
             <div className="text-3xl mb-4">3️⃣</div>
             <h3 className="text-xl font-bold text-white mb-2">It Runs 24/7!</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Your server spins up instantly in the cloud. Your bot stays online all day and night with automatic restart protection.
+              Your instance spins up immediately in the cloud and runs non-stop with automatic health monitoring.
             </p>
           </div>
         </div>

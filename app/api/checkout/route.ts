@@ -2,14 +2,25 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { templateName } = await req.json();
-    const apiKey = process.env.LEMONSQUEEZY_API_KEY;
-    const storeId = process.env.LEMONSQUEEZY_STORE_ID;
-    const variantId = process.env.LEMONSQUEEZY_VARIANT_ID;
+    const body = await req.json();
+    const { templateId } = body;
+
+    // Friendly names mapped to template IDs
+    const templateNames: Record<string, string> = {
+      'n8n-workflow': 'n8n Workflow Automation',
+      'telegram-ai-bot': 'Telegram AI Bot Runner',
+      'langchain-agent': 'LangChain / CrewAI Runner',
+    };
+
+    const selectedName = templateNames[templateId] || 'AI Agent Hosting';
+
+    const apiKey = process.env.LEMON_SQUEEZY_API_KEY;
+    const storeId = process.env.LEMON_SQUEEZY_STORE_ID;
+    const variantId = process.env.LEMON_SQUEEZY_VARIANT_ID;
 
     if (!apiKey || !storeId || !variantId) {
       return NextResponse.json(
-        { error: 'Missing Lemon Squeezy credentials in .env.local' },
+        { error: 'Lemon Squeezy credentials missing in environment variables.' },
         { status: 500 }
       );
     }
@@ -27,26 +38,27 @@ export async function POST(req: Request) {
           attributes: {
             checkout_data: {
               custom: {
-                template_name: templateName,
+                template_id: templateId,
+                template_name: selectedName,
               },
             },
             product_options: {
-              name: `AutoCloud AI: ${templateName}`,
-              receipt_button_text: 'Go to Dashboard',
-              redirect_url: 'http://localhost:3000/?success=true',
+              name: `AutoCloud AI: ${selectedName}`,
+              description: '1-Click deployment and 24/7 background hosting for AI Agents and workflows.',
+              redirect_url: `${req.headers.get('origin') || 'https://autocloud-ai-p448.vercel.app'}/?success=true`,
             },
           },
           relationships: {
             store: {
               data: {
                 type: 'stores',
-                id: storeId.toString(),
+                id: String(storeId),
               },
             },
             variant: {
               data: {
                 type: 'variants',
-                id: variantId.toString(),
+                id: String(variantId),
               },
             },
           },
@@ -54,16 +66,28 @@ export async function POST(req: Request) {
       }),
     });
 
-    const resData = await response.json();
+    const data = await response.json();
 
     if (!response.ok) {
-      const errorMsg = resData?.errors?.[0]?.detail || resData?.message || 'Failed to create checkout';
-      return NextResponse.json({ error: errorMsg }, { status: response.status });
+      console.error('Lemon Squeezy error details:', data);
+      return NextResponse.json(
+        { error: data.errors?.[0]?.detail || 'Failed to create checkout session.' },
+        { status: response.status }
+      );
     }
 
-    const checkoutUrl = resData?.data?.attributes?.url;
+    const checkoutUrl = data.data?.attributes?.url;
+
+    if (!checkoutUrl) {
+      return NextResponse.json(
+        { error: 'Checkout URL not returned from payment gateway.' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({ url: checkoutUrl });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Checkout API Route Error:', err);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

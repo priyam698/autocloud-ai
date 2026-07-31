@@ -23,9 +23,7 @@ export default function Home() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [activeStep, setActiveStep] = useState<number>(1);
 
-  // Load user session & templates from Supabase
   useEffect(() => {
     async function loadData() {
       try {
@@ -149,7 +147,7 @@ export default function Home() {
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
             <a href="#templates" className="hover:text-white transition-colors">Bot Library</a>
             <a href="#why-us" className="hover:text-white transition-colors">Why Choose Us</a>
-            <a href="#user-manual" className="hover:text-white transition-colors">User Manual</a>
+            <a href="#user-manual" className="hover:text-white transition-colors">How It Works</a>
             <a href="#templates" className="hover:text-white transition-colors">Pricing</a>
             <a href="https://t.me/AutoCloudSupportBot" target="_blank" className="hover:text-white transition-colors">24/7 Support</a>
           </div>
@@ -209,7 +207,7 @@ export default function Home() {
             href="#user-manual"
             className="px-6 py-3 text-sm font-semibold text-slate-300 bg-[#16191e] hover:bg-slate-800 border border-slate-800 rounded-full transition-all"
           >
-            Explore Manual ⚡
+            How It Works ⚡
           </a>
         </div>
       </section>
@@ -258,104 +256,46 @@ export default function Home() {
         </div>
       </section>
 
-      {/* USER MANUAL & INTERACTIVE DASHBOARD PREVIEW */}
+      {/* HOW IT WORKS / USER GUIDE SECTION */}
       <section id="user-manual" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-800/50">
         <div className="text-center mb-12">
           <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest bg-rose-950/60 border border-rose-800/40 px-3 py-1 rounded-full">
-            Quickstart & Documentation
+            3-Step Quickstart
           </span>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white mt-4 mb-3">
-            User Manual & Deployment Guide
+            How AutoCloud AI Works
           </h2>
           <p className="text-slate-400 text-sm max-w-xl mx-auto">
-            Learn how to launch your 24/7 AI workflow in 3 simple steps.
+            Hosting your AI bots and workflows takes less than 1 minute.
           </p>
         </div>
 
-        {/* Dynamic Interactive Dashboard Mockup Container */}
-        <div className="mb-12 bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl overflow-hidden p-6 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-4 mb-6">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-rose-500/80" />
-              <span className="w-3 h-3 rounded-full bg-amber-500/80" />
-              <span className="w-3 h-3 rounded-full bg-emerald-500/80" />
-              <span className="text-xs text-slate-500 font-mono ml-2">autocloud-instance-console.v1</span>
-            </div>
-            <span className="text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2.5 py-1 rounded-full font-mono flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Active System
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
-            <div className="bg-[#0b0d0f] p-4 rounded-xl border border-slate-800">
-              <span className="text-slate-500 block mb-1">SELECTED TEMPLATE</span>
-              <span className="text-white font-bold text-sm">n8n Workflow Runner</span>
-            </div>
-            <div className="bg-[#0b0d0f] p-4 rounded-xl border border-slate-800">
-              <span className="text-slate-500 block mb-1">EXECUTION MODE</span>
-              <span className="text-purple-400 font-bold text-sm">24/7 Persistent Daemon</span>
-            </div>
-            <div className="bg-[#0b0d0f] p-4 rounded-xl border border-slate-800">
-              <span className="text-slate-500 block mb-1">SSL & PORT ROUTING</span>
-              <span className="text-emerald-400 font-bold text-sm">Auto-SSL Active (:443)</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Interactive 3-Step Manual */}
+        {/* Super Clear 3 Step Process */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div 
-            onClick={() => setActiveStep(1)}
-            className={`cursor-pointer bg-[#13161c]/80 backdrop-blur-xl border rounded-2xl p-6 transition-all ${
-              activeStep === 1 ? 'border-rose-500/80 bg-rose-950/10' : 'border-slate-800/90 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="w-8 h-8 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold flex items-center justify-center text-sm">
-                1
-              </span>
-              <span className="text-[10px] text-slate-500 uppercase font-semibold">Step One</span>
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">Select Your Agent Template</h3>
+          {/* Step 1 */}
+          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden">
+            <div className="text-3xl mb-4">1️⃣</div>
+            <h3 className="text-xl font-bold text-white mb-2">Pick Your Bot</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Browse our pre-configured library for n8n automation, Telegram assistants, or custom Python LangChain execution.
+              Choose what you want to run: an <b>n8n automation flow</b>, a <b>Telegram AI assistant</b>, or a <b>Custom Python AI Agent</b>.
             </p>
           </div>
 
-          <div 
-            onClick={() => setActiveStep(2)}
-            className={`cursor-pointer bg-[#13161c]/80 backdrop-blur-xl border rounded-2xl p-6 transition-all ${
-              activeStep === 2 ? 'border-amber-500/80 bg-amber-950/10' : 'border-slate-800/90 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold flex items-center justify-center text-sm">
-                2
-              </span>
-              <span className="text-[10px] text-slate-500 uppercase font-semibold">Step Two</span>
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">Configure API Keys</h3>
+          {/* Step 2 */}
+          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden">
+            <div className="text-3xl mb-4">2️⃣</div>
+            <h3 className="text-xl font-bold text-white mb-2">Click Deploy</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Input your OpenAI or Telegram Bot tokens inside our encrypted dashboard. Keys are never logged in plain text.
+              Click the <b>Deploy Instance</b> button and complete the secure $12/month checkout. No credit card surprises.
             </p>
           </div>
 
-          <div 
-            onClick={() => setActiveStep(3)}
-            className={`cursor-pointer bg-[#13161c]/80 backdrop-blur-xl border rounded-2xl p-6 transition-all ${
-              activeStep === 3 ? 'border-purple-500/80 bg-purple-950/10' : 'border-slate-800/90 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 font-bold flex items-center justify-center text-sm">
-                3
-              </span>
-              <span className="text-[10px] text-slate-500 uppercase font-semibold">Step Three</span>
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">Launch 24/7 Background Instance</h3>
+          {/* Step 3 */}
+          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden">
+            <div className="text-3xl mb-4">3️⃣</div>
+            <h3 className="text-xl font-bold text-white mb-2">It Runs 24/7!</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Click Deploy to initialize your persistent background container. Monitor real-time logs and health status automatically.
+              Your server spins up instantly in the cloud. Your bot stays online all day and night with automatic restart protection.
             </p>
           </div>
         </div>

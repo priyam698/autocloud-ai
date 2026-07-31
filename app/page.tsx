@@ -209,7 +209,7 @@ export default function Home() {
             href="#user-manual"
             className="px-6 py-3 text-sm font-semibold text-slate-300 bg-[#16191e] hover:bg-slate-800 border border-slate-800 rounded-full transition-all"
           >
-            Watch Video Manual 🎥
+            Explore Manual ⚡
           </a>
         </div>
       </section>
@@ -258,7 +258,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* USER MANUAL & VIDEO WALKTHROUGH SECTION */}
+      {/* USER MANUAL & INTERACTIVE DASHBOARD PREVIEW */}
       <section id="user-manual" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-800/50">
         <div className="text-center mb-12">
           <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest bg-rose-950/60 border border-rose-800/40 px-3 py-1 rounded-full">
@@ -268,31 +268,43 @@ export default function Home() {
             User Manual & Deployment Guide
           </h2>
           <p className="text-slate-400 text-sm max-w-xl mx-auto">
-            Learn how to launch your 24/7 AI workflow in 3 simple steps or watch our 60-second video overview.
+            Learn how to launch your 24/7 AI workflow in 3 simple steps.
           </p>
         </div>
 
-        {/* Video Player Container */}
-        <div className="mb-12 bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl overflow-hidden p-2 sm:p-4 shadow-2xl">
-          <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center border border-slate-800">
-            {/* Embedded Responsive Video Placeholder - replace src with your Loom/YouTube link */}
-            <iframe
-              className="w-full h-full"
-              src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?controls=1"
-              title="AutoCloud AI Video Manual"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
+        {/* Dynamic Interactive Dashboard Mockup Container */}
+        <div className="mb-12 bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl overflow-hidden p-6 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-4 mb-6">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-rose-500/80" />
+              <span className="w-3 h-3 rounded-full bg-amber-500/80" />
+              <span className="w-3 h-3 rounded-full bg-emerald-500/80" />
+              <span className="text-xs text-slate-500 font-mono ml-2">autocloud-instance-console.v1</span>
+            </div>
+            <span className="text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2.5 py-1 rounded-full font-mono flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Active System
+            </span>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-3 text-xs text-slate-400">
-            <span>🎥 <b>Video Walkthrough:</b> 60-Second Instant Agent Deployment</span>
-            <span className="text-rose-400 font-semibold">Zero Coding Required</span>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
+            <div className="bg-[#0b0d0f] p-4 rounded-xl border border-slate-800">
+              <span className="text-slate-500 block mb-1">SELECTED TEMPLATE</span>
+              <span className="text-white font-bold text-sm">n8n Workflow Runner</span>
+            </div>
+            <div className="bg-[#0b0d0f] p-4 rounded-xl border border-slate-800">
+              <span className="text-slate-500 block mb-1">EXECUTION MODE</span>
+              <span className="text-purple-400 font-bold text-sm">24/7 Persistent Daemon</span>
+            </div>
+            <div className="bg-[#0b0d0f] p-4 rounded-xl border border-slate-800">
+              <span className="text-slate-500 block mb-1">SSL & PORT ROUTING</span>
+              <span className="text-emerald-400 font-bold text-sm">Auto-SSL Active (:443)</span>
+            </div>
           </div>
         </div>
 
         {/* Interactive 3-Step Manual */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Step 1 */}
           <div 
             onClick={() => setActiveStep(1)}
             className={`cursor-pointer bg-[#13161c]/80 backdrop-blur-xl border rounded-2xl p-6 transition-all ${
@@ -311,7 +323,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Step 2 */}
           <div 
             onClick={() => setActiveStep(2)}
             className={`cursor-pointer bg-[#13161c]/80 backdrop-blur-xl border rounded-2xl p-6 transition-all ${
@@ -330,7 +341,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Step 3 */}
           <div 
             onClick={() => setActiveStep(3)}
             className={`cursor-pointer bg-[#13161c]/80 backdrop-blur-xl border rounded-2xl p-6 transition-all ${

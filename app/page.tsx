@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
+import dynamic from 'next/dynamic';
 
-// Dynamically import ThreeBackground with SSR disabled to prevent build errors
 const ThreeBackground = dynamic(() => import('@/app/components/ThreeBackground'), {
   ssr: false,
 });
@@ -24,6 +23,7 @@ export default function Home() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [activeStep, setActiveStep] = useState<number>(1);
 
   // Load user session & templates from Supabase
   useEffect(() => {
@@ -44,7 +44,6 @@ export default function Home() {
         } else if (data && data.length > 0) {
           setTemplates(data);
         } else {
-          // Fallback UI Templates if database returns empty
           setTemplates([
             {
               id: 'n8n-workflow',
@@ -83,7 +82,6 @@ export default function Home() {
     loadData();
   }, []);
 
-  // GitHub OAuth Login
   const handleSignIn = async () => {
     try {
       await supabase.auth.signInWithOAuth({
@@ -97,13 +95,11 @@ export default function Home() {
     }
   };
 
-  // Sign Out
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
   };
 
-  // Trigger Lemon Squeezy Checkout
   const handleDeploy = async (templateId: string) => {
     setLoadingId(templateId);
     try {
@@ -128,9 +124,9 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0f12] text-slate-100 font-sans selection:bg-rose-500 selection:text-white relative overflow-hidden">
+    <div className="min-h-screen bg-[#0d0f12] text-slate-100 font-sans selection:bg-pink-500 selection:text-white relative overflow-hidden">
       
-      {/* 3D ANIMATED CANVAS BACKGROUND */}
+      {/* 3D CANVAS BACKGROUND */}
       <ThreeBackground />
 
       {/* FLOATING PILL NAVBAR */}
@@ -140,7 +136,7 @@ export default function Home() {
           {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 to-amber-400 p-[1.5px]">
-              <div className="w-full h-full bg-[#0d0f12] rounded-full flex items-center justify-center overflow-hidden">
+              <div className="w-full h-full bg-[#0d0f12] rounded-full flex items-center justify-center">
                 <img src="/gemini-svg.png" alt="AutoCloud Logo" className="w-5 h-5 object-contain" />
               </div>
             </div>
@@ -149,15 +145,16 @@ export default function Home() {
             </span>
           </div>
 
-          {/* Navigation Links */}
+          {/* Center Links */}
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
             <a href="#templates" className="hover:text-white transition-colors">Bot Library</a>
             <a href="#why-us" className="hover:text-white transition-colors">Why Choose Us</a>
+            <a href="#user-manual" className="hover:text-white transition-colors">User Manual</a>
             <a href="#templates" className="hover:text-white transition-colors">Pricing</a>
-            <a href="https://t.me/AutoCloudSupportBot" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">24/7 Docs</a>
+            <a href="https://t.me/AutoCloudSupportBot" target="_blank" className="hover:text-white transition-colors">24/7 Support</a>
           </div>
 
-          {/* User Auth Control */}
+          {/* User Auth Button */}
           <div>
             {authLoading ? (
               <div className="h-8 w-20 bg-slate-800 rounded-full animate-pulse" />
@@ -209,17 +206,15 @@ export default function Home() {
             Deploy Now
           </a>
           <a
-            href="https://t.me/AutoCloudSupportBot"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="#user-manual"
             className="px-6 py-3 text-sm font-semibold text-slate-300 bg-[#16191e] hover:bg-slate-800 border border-slate-800 rounded-full transition-all"
           >
-            Explore Docs
+            Watch Video Manual 🎥
           </a>
         </div>
       </section>
 
-      {/* WHY CHOOSE US / KEY ADVANTAGES SECTION */}
+      {/* WHY CHOOSE US SECTION */}
       <section id="why-us" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-800/50">
         <div className="text-center mb-12">
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-4">
@@ -231,7 +226,6 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Advantage 1 */}
           <div className="bg-[#13161c]/80 backdrop-blur-xl border border-slate-800/90 hover:border-rose-500/40 rounded-2xl p-6 transition-all group">
             <div className="w-10 h-10 rounded-xl bg-rose-950/60 border border-rose-800/40 text-rose-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
               ⚡
@@ -242,7 +236,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Advantage 2 */}
           <div className="bg-[#13161c]/80 backdrop-blur-xl border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-6 transition-all group">
             <div className="w-10 h-10 rounded-xl bg-amber-950/60 border border-amber-800/40 text-amber-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
               🛡️
@@ -253,7 +246,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Advantage 3 */}
           <div className="bg-[#13161c]/80 backdrop-blur-xl border border-slate-800/90 hover:border-purple-500/40 rounded-2xl p-6 transition-all group">
             <div className="w-10 h-10 rounded-xl bg-purple-950/60 border border-purple-800/40 text-purple-400 flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform">
               🧪
@@ -261,6 +253,99 @@ export default function Home() {
             <h3 className="text-lg font-bold text-white mb-2">Flat $12/mo Pricing</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
               Save up to 50% compared to official $24/mo hosting plans. Transparent monthly billing with zero surprise usage spikes.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* USER MANUAL & VIDEO WALKTHROUGH SECTION */}
+      <section id="user-manual" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-800/50">
+        <div className="text-center mb-12">
+          <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest bg-rose-950/60 border border-rose-800/40 px-3 py-1 rounded-full">
+            Quickstart & Documentation
+          </span>
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-white mt-4 mb-3">
+            User Manual & Deployment Guide
+          </h2>
+          <p className="text-slate-400 text-sm max-w-xl mx-auto">
+            Learn how to launch your 24/7 AI workflow in 3 simple steps or watch our 60-second video overview.
+          </p>
+        </div>
+
+        {/* Video Player Container */}
+        <div className="mb-12 bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl overflow-hidden p-2 sm:p-4 shadow-2xl">
+          <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center border border-slate-800">
+            {/* Embedded Responsive Video Placeholder - replace src with your Loom/YouTube link */}
+            <iframe
+              className="w-full h-full"
+              src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?controls=1"
+              title="AutoCloud AI Video Manual"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-3 text-xs text-slate-400">
+            <span>🎥 <b>Video Walkthrough:</b> 60-Second Instant Agent Deployment</span>
+            <span className="text-rose-400 font-semibold">Zero Coding Required</span>
+          </div>
+        </div>
+
+        {/* Interactive 3-Step Manual */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Step 1 */}
+          <div 
+            onClick={() => setActiveStep(1)}
+            className={`cursor-pointer bg-[#13161c]/80 backdrop-blur-xl border rounded-2xl p-6 transition-all ${
+              activeStep === 1 ? 'border-rose-500/80 bg-rose-950/10' : 'border-slate-800/90 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <span className="w-8 h-8 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold flex items-center justify-center text-sm">
+                1
+              </span>
+              <span className="text-[10px] text-slate-500 uppercase font-semibold">Step One</span>
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">Select Your Agent Template</h3>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              Browse our pre-configured library for n8n automation, Telegram assistants, or custom Python LangChain execution.
+            </p>
+          </div>
+
+          {/* Step 2 */}
+          <div 
+            onClick={() => setActiveStep(2)}
+            className={`cursor-pointer bg-[#13161c]/80 backdrop-blur-xl border rounded-2xl p-6 transition-all ${
+              activeStep === 2 ? 'border-amber-500/80 bg-amber-950/10' : 'border-slate-800/90 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <span className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold flex items-center justify-center text-sm">
+                2
+              </span>
+              <span className="text-[10px] text-slate-500 uppercase font-semibold">Step Two</span>
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">Configure API Keys</h3>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              Input your OpenAI or Telegram Bot tokens inside our encrypted dashboard. Keys are never logged in plain text.
+            </p>
+          </div>
+
+          {/* Step 3 */}
+          <div 
+            onClick={() => setActiveStep(3)}
+            className={`cursor-pointer bg-[#13161c]/80 backdrop-blur-xl border rounded-2xl p-6 transition-all ${
+              activeStep === 3 ? 'border-purple-500/80 bg-purple-950/10' : 'border-slate-800/90 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <span className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 font-bold flex items-center justify-center text-sm">
+                3
+              </span>
+              <span className="text-[10px] text-slate-500 uppercase font-semibold">Step Three</span>
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">Launch 24/7 Background Instance</h3>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              Click Deploy to initialize your persistent background container. Monitor real-time logs and health status automatically.
             </p>
           </div>
         </div>

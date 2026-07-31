@@ -24,7 +24,6 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Load user session & templates from Supabase
   useEffect(() => {
     async function loadData() {
       try {
@@ -148,7 +147,7 @@ export default function Home() {
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
             <a href="#templates" className="hover:text-white transition-colors">Bot Library</a>
             <a href="#why-us" className="hover:text-white transition-colors">Why Choose Us</a>
-            <a href="#user-manual" className="hover:text-white transition-colors">How It Works</a>
+            <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
             <a href="#templates" className="hover:text-white transition-colors">Pricing</a>
             <a href="https://t.me/AutoCloudSupportBot" target="_blank" className="hover:text-white transition-colors">24/7 Support</a>
           </div>
@@ -205,7 +204,7 @@ export default function Home() {
             Deploy Now
           </a>
           <a
-            href="#user-manual"
+            href="#how-it-works"
             className="px-6 py-3 text-sm font-semibold text-slate-300 bg-[#16191e] hover:bg-slate-800 border border-slate-800 rounded-full transition-all"
           >
             How It Works ⚡
@@ -257,60 +256,49 @@ export default function Home() {
         </div>
       </section>
 
-      {/* HOW IT WORKS & VIDEO WALKTHROUGH SECTION */}
-      <section id="user-manual" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-800/50">
+      {/* HOW IT WORKS SECTION */}
+      <section id="how-it-works" className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-800/50">
         <div className="text-center mb-12">
           <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest bg-rose-950/60 border border-rose-800/40 px-3 py-1 rounded-full">
-            Setup Guide & Demo
+            3-Step Quickstart
           </span>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-white mt-4 mb-3">
             How AutoCloud AI Works
           </h2>
           <p className="text-slate-400 text-sm max-w-xl mx-auto">
-            Watch the video walkthrough or follow the 3 simple steps below.
+            Hosting your AI bots and workflows takes less than 1 minute.
           </p>
         </div>
 
-        {/* Embedded Video Walkthrough Frame */}
-        <div className="mb-12 bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl overflow-hidden p-2 sm:p-4 shadow-2xl max-w-4xl mx-auto">
-          <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-800">
-            <iframe
-              className="w-full h-full"
-              src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?controls=1"
-              title="AutoCloud AI Video Manual"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-3 text-xs text-slate-400">
-            <span>🎥 <b>Video Guide:</b> Instant 1-Click Agent Deployment</span>
-            <span className="text-rose-400 font-semibold">Zero Coding Required</span>
-          </div>
-        </div>
-
-        {/* 3 Step Quickstart Cards */}
+        {/* 3 Step Process Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6">
-            <div className="text-3xl mb-4">1️⃣</div>
+          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden group hover:border-rose-500/50 transition-all">
+            <div className="w-12 h-12 rounded-xl bg-rose-950/80 border border-rose-800/50 text-rose-400 font-black text-xl flex items-center justify-center mb-4">
+              01
+            </div>
             <h3 className="text-xl font-bold text-white mb-2">Pick Your Bot</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Choose what you want to run: an <b>n8n automation flow</b>, a <b>Telegram AI assistant</b>, or a <b>Custom Python AI Agent</b>.
+              Select an agent from our library: <b>n8n automation flows</b>, <b>Telegram AI bots</b>, or <b>Python AI agents</b>.
             </p>
           </div>
 
-          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6">
-            <div className="text-3xl mb-4">2️⃣</div>
+          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden group hover:border-amber-500/50 transition-all">
+            <div className="w-12 h-12 rounded-xl bg-amber-950/80 border border-amber-800/50 text-amber-400 font-black text-xl flex items-center justify-center mb-4">
+              02
+            </div>
             <h3 className="text-xl font-bold text-white mb-2">Click Deploy</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Click the <b>Deploy Instance</b> button and complete the secure $12/month checkout via Lemon Squeezy.
+              Click <b>Deploy Instance</b> and complete checkout via Lemon Squeezy ($12/month flat rate).
             </p>
           </div>
 
-          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6">
-            <div className="text-3xl mb-4">3️⃣</div>
-            <h3 className="text-xl font-bold text-white mb-2">It Runs 24/7!</h3>
+          <div className="bg-[#13161c]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden group hover:border-purple-500/50 transition-all">
+            <div className="w-12 h-12 rounded-xl bg-purple-950/80 border border-purple-800/50 text-purple-400 font-black text-xl flex items-center justify-center mb-4">
+              03
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Runs 24/7</h3>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Your instance spins up immediately in the cloud and runs non-stop with automatic health monitoring.
+              Your container boots up automatically in the cloud. It stays online with non-stop uptime and auto-restart protection.
             </p>
           </div>
         </div>

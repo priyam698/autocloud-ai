@@ -1,12 +1,13 @@
-import dynamic from 'next/dynamic';
-
-const ThreeBackground = dynamic(() => import('@/app/components/ThreeBackground'), {
-  ssr: false,
-});
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
+
+// Dynamically import ThreeBackground with SSR disabled to prevent build errors
+const ThreeBackground = dynamic(() => import('@/app/components/ThreeBackground'), {
+  ssr: false,
+});
 
 interface Template {
   id: string;
@@ -43,6 +44,7 @@ export default function Home() {
         } else if (data && data.length > 0) {
           setTemplates(data);
         } else {
+          // Fallback UI Templates if database returns empty
           setTemplates([
             {
               id: 'n8n-workflow',
@@ -81,6 +83,7 @@ export default function Home() {
     loadData();
   }, []);
 
+  // GitHub OAuth Login
   const handleSignIn = async () => {
     try {
       await supabase.auth.signInWithOAuth({
@@ -94,11 +97,13 @@ export default function Home() {
     }
   };
 
+  // Sign Out
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
   };
 
+  // Trigger Lemon Squeezy Checkout
   const handleDeploy = async (templateId: string) => {
     setLoadingId(templateId);
     try {
@@ -123,14 +128,10 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0f12] text-slate-100 font-sans selection:bg-pink-500 selection:text-white relative overflow-hidden">
+    <div className="min-h-screen bg-[#0d0f12] text-slate-100 font-sans selection:bg-rose-500 selection:text-white relative overflow-hidden">
       
-      {/* GLOWING AMBIENT BACKGROUND */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-rose-500/15 via-purple-600/10 to-transparent rounded-full blur-[140px]" />
-        <div className="absolute top-[40%] right-[-10%] w-[600px] h-[600px] bg-amber-500/10 rounded-full blur-[160px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[160px]" />
-      </div>
+      {/* 3D ANIMATED CANVAS BACKGROUND */}
+      <ThreeBackground />
 
       {/* FLOATING PILL NAVBAR */}
       <div className="relative z-20 pt-6 px-4">
@@ -139,7 +140,7 @@ export default function Home() {
           {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 to-amber-400 p-[1.5px]">
-              <div className="w-full h-full bg-[#0d0f12] rounded-full flex items-center justify-center">
+              <div className="w-full h-full bg-[#0d0f12] rounded-full flex items-center justify-center overflow-hidden">
                 <img src="/gemini-svg.png" alt="AutoCloud Logo" className="w-5 h-5 object-contain" />
               </div>
             </div>
@@ -148,15 +149,15 @@ export default function Home() {
             </span>
           </div>
 
-          {/* Center Links */}
+          {/* Navigation Links */}
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
             <a href="#templates" className="hover:text-white transition-colors">Bot Library</a>
             <a href="#why-us" className="hover:text-white transition-colors">Why Choose Us</a>
             <a href="#templates" className="hover:text-white transition-colors">Pricing</a>
-            <a href="https://t.me/AutoCloudSupportBot" target="_blank" className="hover:text-white transition-colors">24/7 Docs</a>
+            <a href="https://t.me/AutoCloudSupportBot" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">24/7 Docs</a>
           </div>
 
-          {/* User Auth Button */}
+          {/* User Auth Control */}
           <div>
             {authLoading ? (
               <div className="h-8 w-20 bg-slate-800 rounded-full animate-pulse" />

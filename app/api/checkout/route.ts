@@ -14,9 +14,10 @@ export async function POST(req: Request) {
 
     const selectedName = templateNames[templateId] || 'AI Agent Hosting';
 
-    const apiKey = process.env.LEMON_SQUEEZY_API_KEY;
-    const storeId = process.env.LEMON_SQUEEZY_STORE_ID;
-    const variantId = process.env.LEMON_SQUEEZY_VARIANT_ID;
+    // Support both naming styles (LEMONSQUEEZY_ and LEMON_SQUEEZY_)
+    const apiKey = process.env.LEMONSQUEEZY_API_KEY || process.env.LEMON_SQUEEZY_API_KEY;
+    const storeId = process.env.LEMONSQUEEZY_STORE_ID || process.env.LEMON_SQUEEZY_STORE_ID;
+    const variantId = process.env.LEMONSQUEEZY_VARIANT_ID || process.env.LEMON_SQUEEZY_VARIANT_ID;
 
     if (!apiKey || !storeId || !variantId) {
       return NextResponse.json(

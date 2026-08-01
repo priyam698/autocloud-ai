@@ -16,9 +16,9 @@ export async function POST(req: Request) {
       if (userMessage === '/start') {
         replyText = '⚡ *AutoCloud AI Runner Active!*\n\nI am connected to Gemini AI. Ask me anything about crypto, quant trading, or general coding!';
       } else {
-        // Switched to gemini-1.5-flash for stable free tier rate limits
+        // Updated to active model: gemini-2.5-flash
         const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

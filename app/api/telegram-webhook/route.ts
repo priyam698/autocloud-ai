@@ -4,28 +4,32 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // Check if the update contains a message
-    if (body.message && body.message.text) {
+    // Check if telegram sent a message object
+    if (body?.message?.chat?.id) {
       const chatId = body.message.chat.id;
-      const userText = body.message.text;
+      const token = '8933256473:AAHoCwrKmPqdvsJf2gzuFFCcO4usvF7E4vc';
 
-      // Reply back if user sent /start
-      if (userText === '/start') {
-        const botToken = process.env.TELEGRAM_BOT_TOKEN; // Or fetch dynamically from Supabase
-        
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: '⚡ AutoCloud AI Runner Connected!\n\nYour 24/7 AI Agent instance is active and running on AutoCloud AI infrastructure.',
-          }),
-        });
-      }
+      // Send response message back to Telegram user
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: '⚡ AutoCloud AI Runner Connected!\n\nYour 24/7 AI Agent instance is active and running on AutoCloud AI infrastructure.',
+        }),
+      });
     }
 
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    return NextResponse.json({ error: 'Failed to process webhook' }, { status: 500 });
+    return NextResponse.json({ status: 'ok' }, { status: 200 });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return NextResponse.json({ status: 'error' }, { status: 500 });
   }
+}
+
+// Allow GET requests so you can test the route in your browser
+export async function GET() {
+  return NextResponse.json({ status: 'Telegram webhook route is active!' });
 }

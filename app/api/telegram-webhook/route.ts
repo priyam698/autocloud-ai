@@ -16,9 +16,9 @@ export async function POST(req: Request) {
       if (userMessage === '/start') {
         replyText = '⚡ *AutoCloud AI Runner Active!*\n\nI am connected to Gemini AI. Ask me anything about crypto, quant trading, or general coding!';
       } else {
-        // Updated to active model: gemini-2.5-flash
+        // Updated model endpoint to active gemini-3.6-flash
         const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
         replyText =
           geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
-          `Gemini Error: ${geminiData?.error?.message || 'Unable to fetch response'}`;
+          `Gemini Error: ${geminiData?.error?.message || 'Unable to process query.'}`;
       }
 
       await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {

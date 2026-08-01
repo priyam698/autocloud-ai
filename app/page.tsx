@@ -229,6 +229,7 @@ export default function Home() {
 
           {/* Navigation Items */}
           <div className="hidden md:flex items-center gap-8 text-xs font-medium text-slate-400">
+            <a href="/dashboard" className="text-indigo-400 hover:text-indigo-300 font-semibold transition">Dashboard</a>
             <a href="#features" className="hover:text-white transition">Why Choose Us</a>
             <a href="#marketplace" className="hover:text-white transition">Agent Marketplace</a>
             <a href="#support" className="hover:text-white transition">24/7 Support</a>

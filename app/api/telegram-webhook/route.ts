@@ -4,20 +4,42 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // Check if telegram sent a message object
-    if (body?.message?.chat?.id) {
+    if (body?.message?.chat?.id && body?.message?.text) {
       const chatId = body.message.chat.id;
-      const token = '8933256473:AAHoCwrKmPqdvsJf2gzuFFCcO4usvF7E4vc';
+      const userMessage = body.message.text;
 
-      // Send response message back to Telegram user
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      const telegramToken = process.env.TELEGRAM_BOT_TOKEN || '';
+      const geminiApiKey = process.env.GEMINI_API_KEY1 || '';
+
+      let replyText = '';
+
+      if (userMessage === '/start') {
+        replyText = '⚡ *AutoCloud AI Runner Active!*\n\nI am connected to Gemini AI. Ask me anything about crypto, quant trading, or general coding!';
+      } else {
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+            }),
+          }
+        );
+
+        const geminiData = await geminiRes.json();
+        replyText =
+          geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
+          'Sorry, I could not process that query right now.';
+      }
+
+      await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: '⚡ AutoCloud AI Runner Connected!\n\nYour 24/7 AI Agent instance is active and running on AutoCloud AI infrastructure.',
+          text: replyText,
+          parse_mode: 'Markdown',
         }),
       });
     }
@@ -29,7 +51,6 @@ export async function POST(req: Request) {
   }
 }
 
-// Allow GET requests so you can test the route in your browser
 export async function GET() {
-  return NextResponse.json({ status: 'Telegram webhook route is active!' });
+  return NextResponse.json({ status: 'Telegram Gemini Webhook is active!' });
 }

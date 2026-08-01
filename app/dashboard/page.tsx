@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Bot, Cpu, RefreshCw, Power, CheckCircle, Terminal, ArrowLeft, X, Play } from 'lucide-react';
+import { Bot, Cpu, RefreshCw, Power, CheckCircle, Terminal, ArrowLeft, X, Play, Key, Activity, Server, Check } from 'lucide-react';
 import Link from 'next/link';
 
 interface Deployment {
@@ -12,6 +12,7 @@ interface Deployment {
   status: string;
   user_email: string;
   container_id: string;
+  bot_token?: string;
   created_at: string;
 }
 
@@ -20,10 +21,16 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   
-  // Console Log Modal state
+  // Console Log Modal State
   const [activeLogContainer, setActiveLogContainer] = useState<string | null>(null);
   const [logContent, setLogContent] = useState<string[]>([]);
   
+  // Token Modal State
+  const [activeTokenInstance, setActiveTokenInstance] = useState<Deployment | null>(null);
+  const [inputToken, setInputToken] = useState('');
+  const [savingToken, setSavingToken] = useState(false);
+  const [tokenSavedSuccess, setTokenSavedSuccess] = useState(false);
+
   // Action loading state
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -67,18 +74,41 @@ export default function DashboardPage() {
     setActionLoading(null);
   }
 
+  // Save Bot Token to Supabase
+  async function saveBotToken() {
+    if (!activeTokenInstance) return;
+    setSavingToken(true);
+
+    const { error } = await supabase
+      .from('deployments')
+      .update({ bot_token: inputToken })
+      .eq('id', activeTokenInstance.id);
+
+    if (!error) {
+      setDeployments(prev =>
+        prev.map(item => (item.id === activeTokenInstance.id ? { ...item, bot_token: inputToken } : item))
+      );
+      setTokenSavedSuccess(true);
+      setTimeout(() => {
+        setTokenSavedSuccess(false);
+        setActiveTokenInstance(null);
+      }, 1200);
+    }
+    setSavingToken(false);
+  }
+
   // Open Log Viewer Modal
   function openLogs(containerId: string, templateId: string) {
     setActiveLogContainer(containerId);
     setLogContent([
       `[SYS] Initializing runtime stream for container: ${containerId}`,
       `[SYS] Loading configuration template: ${templateId}`,
-      `[INF] Memory allocated: 512MB / CPU share: 0.5 vCPU`,
-      `[INF] Network interface initialized on port 8080`,
-      `[OK] SSL Certificates verified successfully.`,
-      `[OK] Connected to agent orchestration cluster.`,
-      `[RUN] Process started with PID 1042. Listening for incoming payload stream...`,
-      `[LIVE] Agent status: Healthy. Continuous monitoring active.`
+      `[INF] Allocated resources: 512MB RAM / 0.5 vCPU share`,
+      `[INF] Socket active on port 8080 (HTTPS/TLS)`,
+      `[OK] SSL certificates validated successfully.`,
+      `[OK] Connected to orchestration cluster.`,
+      `[RUN] Process PID 1042 listening for payload events...`,
+      `[LIVE] Health check passed (Latency: 18ms). Continuous execution active.`
     ]);
   }
 
@@ -133,53 +163,90 @@ export default function DashboardPage() {
               return (
                 <div
                   key={instance.id}
-                  className="bg-slate-900/60 border border-slate-800 hover:border-slate-700/80 rounded-xl p-6 relative transition backdrop-blur-sm shadow-xl"
+                  className="bg-slate-900/60 border border-slate-800 hover:border-slate-700/80 rounded-xl p-6 relative transition backdrop-blur-sm shadow-xl flex flex-col justify-between"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20">
-                        <Cpu className="w-5 h-5" />
+                  <div>
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20">
+                          <Cpu className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-base">{instance.name}</h3>
+                          <p className="text-xs text-slate-400 font-mono mt-0.5">{instance.container_id}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-base">{instance.name}</h3>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5">{instance.container_id}</p>
-                      </div>
-                    </div>
-                    
-                    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                      isRunning 
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                    }`}>
-                      <CheckCircle className="w-3 h-3" /> {instance.status ? instance.status.toUpperCase() : 'RUNNING'}
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-950/80 rounded-lg p-3.5 border border-slate-800/80 font-mono text-xs text-slate-400 mb-5 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Template ID:</span>
-                      <span className="text-slate-300 font-semibold">{instance.template_id}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Provisioned:</span>
-                      <span className="text-slate-300">
-                        {instance.created_at ? new Date(instance.created_at).toLocaleDateString() : 'Just now'}
+                      
+                      <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+                        isRunning 
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      }`}>
+                        <CheckCircle className="w-3 h-3" /> {instance.status ? instance.status.toUpperCase() : 'RUNNING'}
                       </span>
                     </div>
+
+                    {/* Meta Details */}
+                    <div className="bg-slate-950/80 rounded-lg p-3.5 border border-slate-800/80 font-mono text-xs text-slate-400 mb-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Template ID:</span>
+                        <span className="text-slate-300 font-semibold">{instance.template_id}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">API Credentials:</span>
+                        {instance.bot_token ? (
+                          <span className="text-emerald-400 font-medium flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Configured
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 font-medium">Pending Setup</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Provisioned:</span>
+                        <span className="text-slate-300">
+                          {instance.created_at ? new Date(instance.created_at).toLocaleDateString() : 'Just now'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Metrics Bar */}
+                    <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-800/50 mb-5 flex items-center justify-between text-xs text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>CPU: <strong className="text-slate-200">{isRunning ? '2.4%' : '0.0%'}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Server className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>RAM: <strong className="text-slate-200">{isRunning ? '128MB / 512MB' : '0MB'}</strong></span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  {/* Actions Bar */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
                     <button 
                       onClick={() => openLogs(instance.container_id, instance.template_id)}
-                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg border border-slate-700 transition"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg border border-slate-700 transition"
                     >
-                      <Terminal className="w-3.5 h-3.5" /> View Console Logs
+                      <Terminal className="w-3.5 h-3.5" /> Logs
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        setActiveTokenInstance(instance);
+                        setInputToken(instance.bot_token || '');
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium rounded-lg transition"
+                    >
+                      <Key className="w-3.5 h-3.5" /> Bot Token
                     </button>
 
                     <button 
                       onClick={() => toggleStatus(instance.id, instance.status || 'running')}
                       disabled={actionLoading === instance.id}
-                      className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition flex items-center gap-1 ${
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition flex items-center gap-1 ${
                         isRunning 
                           ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20' 
                           : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
@@ -202,6 +269,70 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Bot Token Modal */}
+      {activeTokenInstance && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl shadow-2xl p-6 relative">
+            <button 
+              onClick={() => setActiveTokenInstance(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20">
+                <Key className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">Configure Agent Credentials</h3>
+                <p className="text-xs text-slate-400">{activeTokenInstance.name}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+              Enter your Telegram Bot API Token obtained from <strong className="text-slate-200">@BotFather</strong> to connect your bot logic to this runner.
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <input 
+                type="text" 
+                value={inputToken}
+                onChange={(e) => setInputToken(e.target.value)}
+                placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500 transition"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button 
+                onClick={() => setActiveTokenInstance(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg text-slate-300 transition"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={saveBotToken}
+                disabled={savingToken}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-medium rounded-lg text-white transition flex items-center gap-1.5"
+              >
+                {savingToken ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving...
+                  </>
+                ) : tokenSavedSuccess ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Saved!
+                  </>
+                ) : (
+                  'Save Token'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Terminal Console Logs Modal */}
       {activeLogContainer && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -210,7 +341,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <Terminal className="w-4 h-4 text-indigo-400" />
                 <span className="font-mono text-xs font-medium text-slate-200">
-                  Container Output — {activeLogContainer}
+                  Container Stream Output — {activeLogContainer}
                 </span>
               </div>
               <button 

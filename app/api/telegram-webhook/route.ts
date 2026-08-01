@@ -8,8 +8,8 @@ export async function POST(req: Request) {
       const chatId = body.message.chat.id;
       const userMessage = body.message.text;
 
-      const telegramToken = process.env.TELEGRAM_BOT_TOKEN || '';
-      const geminiApiKey = process.env.GEMINI_API_KEY1 || '';
+      const telegramToken = process.env.TELEGRAM_BOT_TOKEN || '8933256473:AAHoCwrKmPqdvsJf2gzuFFCcO4usvF7E4vc';
+      const geminiApiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY || '';
 
       let replyText = '';
 
@@ -28,9 +28,15 @@ export async function POST(req: Request) {
         );
 
         const geminiData = await geminiRes.json();
+        
+        // Log Gemini error if present (visible in Vercel Logs)
+        if (geminiData.error) {
+          console.error('Gemini API Error:', geminiData.error);
+        }
+
         replyText =
           geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
-          'Sorry, I could not process that query right now.';
+          `Gemini Error: ${geminiData?.error?.message || 'Invalid API Key or payload'}`;
       }
 
       await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
@@ -39,7 +45,6 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           chat_id: chatId,
           text: replyText,
-          parse_mode: 'Markdown',
         }),
       });
     }

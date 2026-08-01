@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
+import { FaGithub } from 'react-icons/fa';
 import { 
   Bot, 
   Zap, 
   Shield, 
   Sparkles, 
   Terminal, 
-  ArrowRight, 
-  Github, 
+  ArrowRight,  
   Mail, 
   MessageSquare,
   Cpu,
@@ -20,6 +20,7 @@ import {
   Lock,
   Server
 } from 'lucide-react';
+
 
 // Dynamically import 3D background with SSR disabled to prevent hydration exceptions
 const ThreeBackground = dynamic(() => import('./components/ThreeBackground'), { 
@@ -114,7 +115,7 @@ export default function Home() {
     } catch (err) {
       console.error('Deployment execution error:', err);
       alert('Checkout process failed. Please check your network connection.');
-    } font-sans finally {
+    } finally {
       setLoadingId(null);
     }
   };
@@ -252,7 +253,7 @@ export default function Home() {
                 onClick={handleSignIn}
                 className="flex items-center gap-2 text-xs bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold px-5 py-2.5 rounded-full shadow-lg shadow-indigo-600/25 transition border border-indigo-400/20 active:scale-95"
               >
-                <Github className="w-3.5 h-3.5" />
+                <FaGithub className="w-3.5 h-3.5" />
                 <span>Sign In</span>
               </button>
             )}

@@ -16,28 +16,23 @@ export async function POST(req: Request) {
       if (userMessage === '/start') {
         replyText = '⚡ *AutoCloud AI Runner Active!*\n\nI am connected to Gemini AI. Ask me anything about crypto, quant trading, or general coding!';
       } else {
-        // Update line 23 to use gemini-2.0-flash:
-const geminiRes = await fetch(
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
-  {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-    }),
-  }
-);
+        // Switched to gemini-1.5-flash for stable free tier rate limits
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+            }),
+          }
+        );
 
         const geminiData = await geminiRes.json();
-        
-        // Log Gemini error if present (visible in Vercel Logs)
-        if (geminiData.error) {
-          console.error('Gemini API Error:', geminiData.error);
-        }
 
         replyText =
           geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
-          `Gemini Error: ${geminiData?.error?.message || 'Invalid API Key or payload'}`;
+          `Gemini Error: ${geminiData?.error?.message || 'Unable to fetch response'}`;
       }
 
       await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {

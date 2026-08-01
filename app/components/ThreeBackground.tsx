@@ -1,132 +1,160 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
+import * as THREE from 'three';
 
+// Unique Neural Connection Grid Background for AutoCloud AI
 export default function ThreeBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mountRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const currentMount = mountRef.current;
+    if (!currentMount) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    // --- Scene Setup ---
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0a0f1d, 0.001); // Subtle deep background fog
 
+    const camera = new THREE.PerspectiveCamera(
+      60, // Field of view
+      window.innerWidth / window.innerHeight, // Aspect ratio
+      1, // Near clipping plane
+      2000 // Far clipping plane
+    );
+    // Position camera inside the cloud matrix
+    camera.position.z = 800;
+
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    currentMount.appendChild(renderer.domElement);
+
+    // --- Neural Nodes (Particles) ---
+    const particleCount = 200; // Optimal performance/look balance
+    const positions = new Float32Array(particleCount * 3);
+    const geometry = new THREE.BufferGeometry();
+
+    for (let i = 0; i < particleCount * 3; i += 3) {
+      positions[i] = (Math.random() - 0.5) * 1600; // Spread nodes in X
+      positions[i + 1] = (Math.random() - 0.5) * 1600; // Spread in Y
+      positions[i + 2] = (Math.random() - 0.5) * 1600; // Spread in depth (Z)
+    }
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const material = new THREE.PointsMaterial({
+      color: 0x4f46e5, // Indigo AI glow color
+      size: 4, // Subtle node size
+      transparent: true,
+      opacity: 0.6, // Low base opacity for subtlety
+      depthWrite: false, // Prevents points from cutting lines
+    });
+
+    const particles = new THREE.Points(geometry, material);
+    scene.add(particles);
+
+    // --- Active Dynamic Connections (Lines) ---
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: 0x6366f1, // Slightly brighter line color
+      transparent: true,
+      opacity: 0.2, // Very faint base lines
+    });
+
+    const lineGeometry = new THREE.BufferGeometry();
+    const linePositions = new Float32Array(particleCount * particleCount * 6); // Max possible connections
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    const connections = new THREE.LineSegments(lineGeometry, lineMaterial);
+    scene.add(connections);
+
+    // --- Mouse & Resize Interaction ---
+    let mouseX = 0;
+    let mouseY = 0;
+
+    const onMouseMove = (event: MouseEvent) => {
+      // Calculate mouse velocity relative to screen center
+      mouseX = (event.clientX - window.innerWidth / 2) * 0.05;
+      mouseY = (event.clientY - window.innerHeight / 2) * 0.05;
+    };
+
+    const onResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('resize', onResize);
+
+    // --- Animation Loop ---
     let animationFrameId: number;
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    const animate = () => {
+      animationFrameId = requestAnimationFrame(animate);
 
-    // 3D Particles
-    interface Particle {
-      x: number;
-      y: number;
-      z: number;
-      size: number;
-      color: string;
-      speed: number;
-    }
+      // Soft base rotation
+      particles.rotation.y += 0.0003;
+      particles.rotation.x += 0.0001;
+      connections.rotation.y = particles.rotation.y;
+      connections.rotation.x = particles.rotation.x;
 
-    const particles: Particle[] = [];
-    const colors = ['#f43f5e', '#fb7185', '#a855f7', '#818cf8', '#38bdf8', '#f59e0b'];
-    const particleCount = 140;
+      // Mouse interactivity: Cam softly lags toward cursor position
+      camera.position.x += (mouseX - camera.position.x) * 0.03;
+      camera.position.y += (-mouseY - camera.position.y) * 0.03;
+      camera.lookAt(scene.position);
 
-    for (let i = 0; i < particleCount; i++) {
-      particles.push({
-        x: (Math.random() - 0.5) * width * 2,
-        y: (Math.random() - 0.5) * height * 2,
-        z: Math.random() * 1000,
-        size: Math.random() * 2 + 1,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        speed: Math.random() * 1.2 + 0.4,
-      });
-    }
+      // Re-calculate dynamic connections between nearby points
+      let vertexIndex = 0;
+      let lineCount = 0;
 
-    const handleResize = () => {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    };
+      for (let i = 0; i < particleCount; i++) {
+        for (let j = i + 1; j < particleCount; j++) {
+          const dx = positions[i * 3] - positions[j * 3];
+          const dy = positions[i * 3 + 1] - positions[j * 3 + 1];
+          const dz = positions[i * 3 + 2] - positions[j * 3 + 2];
+          const distSq = dx * dx + dy * dy + dz * dz;
 
-    window.addEventListener('resize', handleResize);
+          // Only connect nodes within range (creates the network structure)
+          if (distSq < 40000) { // Approx 200 units squared distance
+            linePositions[vertexIndex++] = positions[i * 3];
+            linePositions[vertexIndex++] = positions[i * 3 + 1];
+            linePositions[vertexIndex++] = positions[i * 3 + 2];
 
-    let offset = 0;
-
-    const render = () => {
-      // Clear canvas with dark aesthetic background
-      ctx.fillStyle = '#0d0f12';
-      ctx.fillRect(0, 0, width, height);
-
-      const fov = 300;
-      const cx = width / 2;
-      const cy = height / 2;
-
-      // Render 3D Depth Starfield/Particles
-      particles.forEach((p) => {
-        p.z -= p.speed;
-        if (p.z <= 0) {
-          p.z = 1000;
-          p.x = (Math.random() - 0.5) * width * 2;
-          p.y = (Math.random() - 0.5) * height * 2;
+            linePositions[vertexIndex++] = positions[j * 3];
+            linePositions[vertexIndex++] = positions[j * 3 + 1];
+            linePositions[vertexIndex++] = positions[j * 3 + 2];
+            
+            lineCount++;
+          }
         }
-
-        const scale = fov / (fov + p.z);
-        const x3d = p.x * scale + cx;
-        const y3d = p.y * scale + cy;
-
-        if (x3d >= 0 && x3d <= width && y3d >= 0 && y3d <= height) {
-          const alpha = Math.min(1, Math.max(0.1, (1000 - p.z) / 1000));
-          ctx.beginPath();
-          ctx.arc(x3d, y3d, p.size * scale * 3, 0, Math.PI * 2);
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = alpha;
-          ctx.fill();
-        }
-      });
-
-      // Render Perspective 3D Moving Floor Grid
-      offset = (offset + 0.5) % 30;
-      const horizon = cy + 80;
+      }
       
-      ctx.strokeStyle = '#f43f5e';
-      ctx.lineWidth = 1;
+      // Update geometry with active connections only
+      lineGeometry.setDrawRange(0, lineCount * 2);
+      lineGeometry.attributes.position.needsUpdate = true;
 
-      // Perspective lines converging at horizon
-      for (let x = -width; x < width * 2; x += 80) {
-        ctx.globalAlpha = 0.12;
-        ctx.beginPath();
-        ctx.moveTo(cx, horizon);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-
-      // Horizontal scanning lines
-      for (let y = horizon; y < height; y += 18) {
-        const lineY = y + offset;
-        if (lineY < height) {
-          const alpha = Math.min(0.2, (lineY - horizon) / (height - horizon));
-          ctx.globalAlpha = alpha;
-          ctx.beginPath();
-          ctx.moveTo(0, lineY);
-          ctx.lineTo(width, lineY);
-          ctx.stroke();
-        }
-      }
-
-      ctx.globalAlpha = 1;
-      animationFrameId = requestAnimationFrame(render);
+      renderer.render(scene, camera);
     };
 
-    render();
+    animate();
 
+    // --- Cleanup on Unmount ---
     return () => {
-      window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('resize', onResize);
+      if (currentMount.contains(renderer.domElement)) {
+        currentMount.removeChild(renderer.domElement);
+      }
+      geometry.dispose();
+      material.dispose();
+      lineGeometry.dispose();
+      lineMaterial.dispose();
+      renderer.dispose();
     };
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0 opacity-70"
+    <div
+      ref={mountRef}
+      className="fixed inset-0 pointer-events-none z-0 bg-[#0a0f1d] overflow-hidden"
     />
   );
 }

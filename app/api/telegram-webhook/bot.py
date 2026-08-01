@@ -6,8 +6,10 @@ from groq import Groq
 
 # ---------------- CONFIGURATION ----------------
 # It's best practice on cloud servers to use Environment Variables (fallback provided below)
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8933256473:AAHoCwrKmPqdvsJf2gzuFFCc04usvF7E4vc")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+# ---------------- CONFIGURATION ----------------
+# Read credentials securely from Environment Variables on Render
+TELEGRAM_BOT_TOKEN = os.getenv("8933256473:AAHoCwrKmPqdvsJf2gzuFFCcO4usvF7E4vc")
+GROQ_API_KEY = os.getenv("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")
 
 MODEL_NAME = "llama-3.3-70b-versatile"
 

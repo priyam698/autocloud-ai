@@ -7,8 +7,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from groq import Groq
 
 # ---------------- CONFIGURATION ----------------
-TELEGRAM_BOT_TOKEN = os.getenv("8933256473:AAHoCwrKmPqdvsJf2gzuFFCcO4usvF7E4vc")
-GROQ_API_KEY = os.getenv("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")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_NAME = "llama-3.3-70b-versatile"
 
 # Initialize Groq client

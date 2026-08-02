@@ -1,75 +1,62 @@
-import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import crypto from 'crypto';
+import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
+import crypto from "crypto";
 
-// 1. ADD THIS: Allows opening the URL in a browser for a quick status check
-export async function GET() {
-  return NextResponse.json(
-    { message: 'Lemon Squeezy webhook endpoint is active.' },
-    { status: 200 }
-  );
-}
-
-// 2. YOUR POST HANDLER (WITH SIGNATURE VERIFICATION)
 export async function POST(req: Request) {
   try {
     const rawBody = await req.text();
+    const signature = req.headers.get("x-signature");
+    const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
 
-    // OPTIONAL BUT RECOMMENDED: Verify Lemon Squeezy HMAC Signature
-    const hmac = crypto.createHmac(
-      'sha256',
-      process.env.LEMONSQUEEZY_WEBHOOK_SECRET || ''
-    );
-    const digest = Buffer.from(hmac.update(rawBody).digest('hex'), 'utf8');
-    const signature = Buffer.from(
-      req.headers.get('x-signature') || '',
-      'utf8'
-    );
+    // 1. Validate Webhook Signature (Security Check)
+    if (secret && signature) {
+      const hmac = crypto.createHmac("sha256", secret);
+      const digest = Buffer.from(hmac.update(rawBody).digest("hex"), "utf8");
+      const signatureBuffer = Buffer.from(signature, "utf8");
 
-    if (
-      process.env.LEMONSQUEEZY_WEBHOOK_SECRET &&
-      (!signature.length ||
-        !crypto.timingSafeEqual(digest, signature))
-    ) {
-      return NextResponse.json(
-        { error: 'Invalid signature' },
-        { status: 401 }
-      );
+      if (!crypto.timingSafeEqual(digest, signatureBuffer)) {
+        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      }
     }
 
-    const event = JSON.parse(rawBody);
+    const payload = JSON.parse(rawBody);
+    const eventName = payload.meta?.event_name;
 
-    const eventName = event.meta?.event_name;
-    const customData = event.meta?.custom_data;
-    const userEmail = event.data?.attributes?.user_email;
+    // 2. Handle Successful Order / Purchase Event
+    if (eventName === "order_created") {
+      const customData = payload.meta?.custom_data || {};
+      const customerEmail = payload.data?.attributes?.user_email;
+      const productName = payload.data?.attributes?.first_order_item?.product_name || "Telegram AI Bot Runner";
 
-    if (
-      eventName === 'order_created' ||
-      eventName === 'subscription_created'
-    ) {
-      const templateId = customData?.template_id || 'n8n-workflow';
-      const containerId = `bot_${Math.random().toString(36).substring(2, 9)}`;
+      // Calculate 30-day expiration date
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-      // Automatically register the customer's running 24/7 bot instance
-      await supabase.from('deployments').insert([
+      // 3. Insert newly purchased instance into Supabase deployments table
+      const { data, error } = await supabase.from("deployments").insert([
         {
-          name: customData?.template_name || 'AI Agent Runner',
-          template_id: templateId,
-          status: 'running',
-          user_email: userEmail,
-          container_id: containerId,
-          created_at: new Date().toISOString(),
+          template_name: productName,
+          template_id: customData.template_id || "telegram-ai-bot",
+          status: "RUNNING",
+          organization_type: customData.organization_type || "Individual",
+          organization_name: customData.organization_type === "Organization" ? customData.organization_name : "Individual Use",
+          use_case_description: customData.use_case || "Automated AI Telegram Bot",
+          user_email: customerEmail,
+          expires_at: expiresAt,
+          provisioned_at: new Date().toISOString(),
         },
       ]);
 
-      console.log(
-        `[AutoCloud Webhook] Bot Instance ${containerId} provisioned for ${userEmail}`
-      );
+      if (error) {
+        console.error("❌ Failed to insert instance into Supabase:", error.message);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      console.log(`✅ Successfully provisioned instance for ${customerEmail}`);
     }
 
-    return NextResponse.json({ received: true });
-  } catch (err: any) {
-    console.error('Webhook Handler Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ success: true, event: eventName });
+  } catch (err) {
+    console.error("❌ Error processing Lemon Squeezy webhook:", err);
+    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 }

@@ -115,12 +115,12 @@ export default function DashboardPage() {
       {/* Dashboard Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <a
-            href="/marketplace"
-            className="text-xs text-indigo-400 hover:underline mb-1 inline-block"
-          >
-            ← Back to Marketplace
-          </a>
+         <a
+  href="/"
+  className="text-xs text-indigo-400 hover:underline mb-1 inline-block"
+>
+  ← Back to Marketplace
+</a>
           <h1 className="text-3xl font-bold tracking-tight">Agent Dashboard</h1>
           <p className="text-slate-400 text-sm mt-1">
             Active instances registered to your account

@@ -2,14 +2,20 @@ import os
 import logging
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from telegram import Update, constants
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from groq import Groq
 
-# ---------------- CONFIGURATION ----------------
+# ----------------- CONFIGURATION -----------------
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+# Fallback to system GROQ key if user didn't provide their own
+GROQ_API_KEY = os.getenv("USER_GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
 MODEL_NAME = "llama-3.3-70b-versatile"
+
+# Authorized Users (Your Telegram ID + Consumer's Telegram ID)
+ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID")  # E.g., "6699188889"
+CONSUMER_TELEGRAM_ID = os.getenv("CONSUMER_TELEGRAM_ID")  # Set upon deployment/purchase
 
 # Initialize Groq client
 client = Groq(api_key=GROQ_API_KEY)
@@ -20,57 +26,63 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# --- Web Server Health Check for Render ---
+# ----------------- SECURITY MIDDLEWARE -----------------
+def is_user_authorized(user_id: int) -> bool:
+    str_id = str(user_id)
+    allowed_ids = [str(ADMIN_TELEGRAM_ID)]
+    if CONSUMER_TELEGRAM_ID:
+        allowed_ids.append(str(CONSUMER_TELEGRAM_ID))
+    return str_id in allowed_ids
+
+# ----------------- BOT HANDLERS -----------------
+async font_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_user_authorized(user_id):
+        await update.message.reply_text("⛔ Unauthorized Access: This bot is private to its owner.")
+        return
+    await update.message.reply_text("Hello! I am your Felix AI Assistant. How can I help you today?")
+
+async font_handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_user_authorized(user_id):
+        await update.message.reply_text("⛔ Access Denied.")
+        return
+
+    user_text = update.message.text
+    try:
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are Felix, a helpful AI assistant."},
+                {"role": "user", "content": user_text}
+            ],
+            temperature=0.7,
+            max_tokens=1024,
+        )
+        response_text = completion.choices[0].message.content
+        await update.message.reply_text(response_text)
+    except Exception as e:
+        logging.error(f"Groq API Error: {e}")
+        await update.message.reply_text("Error processing request.")
+
+# ----------------- HEALTH CHECK SERVER -----------------
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
         self.end_headers()
-        self.wfile.write(b"Bot is alive!")
+        self.wfile.write(b"Bot is running")
 
-def run_health_check_server():
-    port = int(os.getenv("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+def run_health_server():
+    server = HTTPServer(('0.0.0.0', 8080), HealthCheckHandler)
     server.serve_forever()
 
-# --- Bot Handlers ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello! I'm your AI Telegram bot. Ask me anything!")
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": user_text}],
-            temperature=0.6
-        )
-
-        reply_text = response.choices[0].message.content
-
-        if "</think>" in reply_text:
-            reply_text = reply_text.split("</think>")[-1].strip()
-
-        await update.message.reply_text(
-            reply_text, 
-            parse_mode=constants.ParseMode.MARKDOWN
-        )
-
-    except Exception as e:
-        logging.error(f"Error generating AI response: {e}")
-        await update.message.reply_text("Sorry, something went wrong while generating the response.")
-
-# --- Main Entrypoint ---
+# ----------------- MAIN EXECUTION -----------------
 if __name__ == '__main__':
-    # Start health check server in background thread for Render
-    threading.Thread(target=run_health_check_server, daemon=True).start()
-
-    # Start Telegram bot
+    threading.Thread(target=run_health_server, daemon=True).start()
+    
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("🤖 Bot and Health Server are running 24/7...")
+    
+    print("Bot is starting...")
     app.run_polling()

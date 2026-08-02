@@ -1,62 +1,67 @@
-import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
-import crypto from "crypto";
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function POST(req: Request) {
   try {
     const rawBody = await req.text();
-    const signature = req.headers.get("x-signature");
-    const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
+    const event = JSON.parse(rawBody);
 
-    // 1. Validate Webhook Signature (Security Check)
-    if (secret && signature) {
-      const hmac = crypto.createHmac("sha256", secret);
-      const digest = Buffer.from(hmac.update(rawBody).digest("hex"), "utf8");
-      const signatureBuffer = Buffer.from(signature, "utf8");
+    if (event.meta.event_name === 'order_created') {
+      const userEmail = event.data.attributes.user_email;
+      const orderId = event.data.id;
 
-      if (!crypto.timingSafeEqual(digest, signatureBuffer)) {
-        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-      }
-    }
+      // 1. Generate unique Instance ID and Password
+      const instanceId = crypto.randomUUID();
+      const accessPassword = crypto.randomBytes(6).toString('hex'); // e.g. "a3f891b2c4e5"
 
-    const payload = JSON.parse(rawBody);
-    const eventName = payload.meta?.event_name;
-
-    // 2. Handle Successful Order / Purchase Event
-    if (eventName === "order_created") {
-      const customData = payload.meta?.custom_data || {};
-      const customerEmail = payload.data?.attributes?.user_email;
-      const productName = payload.data?.attributes?.first_order_item?.product_name || "Telegram AI Bot Runner";
-
-      // Calculate 30-day expiration date
-      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-      // 3. Insert newly purchased instance into Supabase deployments table
-      const { data, error } = await supabase.from("deployments").insert([
-        {
-          template_name: productName,
-          template_id: customData.template_id || "telegram-ai-bot",
-          status: "RUNNING",
-          organization_type: customData.organization_type || "Individual",
-          organization_name: customData.organization_type === "Organization" ? customData.organization_name : "Individual Use",
-          use_case_description: customData.use_case || "Automated AI Telegram Bot",
-          user_email: customerEmail,
-          expires_at: expiresAt,
-          provisioned_at: new Date().toISOString(),
-        },
-      ]);
+      // 2. Insert into Supabase deployments table
+      const { error } = await supabase.from('deployments').insert({
+        id: instanceId,
+        user_email: userEmail,
+        status: 'running',
+        template_id: 'n8n-workflow',
+        access_password: accessPassword,
+        container_id: `bot_${crypto.randomBytes(4).toString('hex')}`,
+      });
 
       if (error) {
-        console.error("❌ Failed to insert instance into Supabase:", error.message);
+        console.error('Supabase Error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      console.log(`✅ Successfully provisioned instance for ${customerEmail}`);
+      // 3. Send Order Confirmation Email with ID & Password
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'AutoCloud AI <orders@autocloud.ai>',
+          to: [userEmail],
+          subject: 'AutoCloud AI - Order Confirmation & Bot Credentials',
+          html: `
+            <h2>Thank you for your purchase!</h2>
+            <p>Your AI Agent instance has been deployed successfully.</p>
+            <br/>
+            <h3>🔑 Your Credentials:</h3>
+            <p><strong>Instance ID:</strong> ${instanceId}</p>
+            <p><strong>Access Password:</strong> ${accessPassword}</p>
+            <br/>
+            <p>Use these credentials on your dashboard to unlock and configure your bot.</p>
+          `,
+        }),
+      });
     }
 
-    return NextResponse.json({ success: true, event: eventName });
-  } catch (err) {
-    console.error("❌ Error processing Lemon Squeezy webhook:", err);
-    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
+    return NextResponse.json({ received: true }, { status: 200 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

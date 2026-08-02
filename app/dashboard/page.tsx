@@ -1,375 +1,395 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Bot, Cpu, RefreshCw, Power, CheckCircle, Terminal, ArrowLeft, X, Play, Key, Activity, Server, Check } from 'lucide-react';
-import Link from 'next/link';
+import { useState, useEffect } from "react";
 
-interface Deployment {
+interface Instance {
   id: string;
-  name: string;
+  template_name: string;
   template_id: string;
-  status: string;
-  user_email: string;
-  container_id: string;
-  bot_token?: string;
-  created_at: string;
+  status: "RUNNING" | "STOPPED" | "PENDING";
+  provisioned_at: string;
+  expires_at?: string;
+  organization_type?: string;
+  organization_name?: string;
+  use_case_description?: string;
+  telegram_token?: string;
 }
 
 export default function DashboardPage() {
-  const [deployments, setDeployments] = useState<Deployment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  
-  // Console Log Modal State
+  const [instances, setInstances] = useState<Instance[]>([]);
   const [activeLogContainer, setActiveLogContainer] = useState<string | null>(null);
-  const [logContent, setLogContent] = useState<string[]>([]);
-  
-  // Token Modal State
-  const [activeTokenInstance, setActiveTokenInstance] = useState<Deployment | null>(null);
-  const [inputToken, setInputToken] = useState('');
-  const [savingToken, setSavingToken] = useState(false);
-  const [tokenSavedSuccess, setTokenSavedSuccess] = useState(false);
+  const [activeTokenModal, setActiveTokenModal] = useState<Instance | null>(null);
+  const [selectedInstanceForSetup, setSelectedInstanceForSetup] = useState<Instance | null>(null);
 
-  // Action loading state
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // Form states for Setup Modal
+  const [orgType, setOrgType] = useState("Individual");
+  const [orgName, setOrgName] = useState("");
+  const [useCase, setUseCase] = useState("");
 
   useEffect(() => {
-    fetchUserAndDeployments();
+    fetchInstances();
   }, []);
 
-  async function fetchUserAndDeployments() {
-    setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const email = session?.user?.email || 'priyamrana069@gmail.com';
-    setUserEmail(email);
-
-    const { data, error } = await supabase
-      .from('deployments')
-      .select('*')
-      .eq('user_email', email)
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setDeployments(data);
+  const fetchInstances = async () => {
+    try {
+      const res = await fetch("/api/instance/list");
+      const data = await res.json();
+      if (data.instances) setInstances(data.instances);
+    } catch (err) {
+      console.error("Failed to fetch instances", err);
     }
-    setLoading(false);
-  }
+  };
 
-  // Toggle RUNNING / STOPPED status in Supabase
-  async function toggleStatus(id: string, currentStatus: string) {
-    const newStatus = currentStatus === 'running' ? 'stopped' : 'running';
-    setActionLoading(id);
-
-    const { error } = await supabase
-      .from('deployments')
-      .update({ status: newStatus })
-      .eq('id', id);
-
-    if (!error) {
-      setDeployments(prev =>
-        prev.map(item => (item.id === id ? { ...item, status: newStatus } : item))
-      );
+  // Toggle Power Status (Start/Stop)
+  const togglePower = async (instance: Instance) => {
+    const newStatus = instance.status === "RUNNING" ? "STOPPED" : "RUNNING";
+    try {
+      await fetch("/api/instance/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instanceId: instance.id, status: newStatus }),
+      });
+      fetchInstances();
+    } catch (err) {
+      console.error("Failed to toggle power", err);
     }
-    setActionLoading(null);
-  }
+  };
 
-  // Save Bot Token to Supabase
-  async function saveBotToken() {
-    if (!activeTokenInstance) return;
-    setSavingToken(true);
-
-    const { error } = await supabase
-      .from('deployments')
-      .update({ bot_token: inputToken })
-      .eq('id', activeTokenInstance.id);
-
-    if (!error) {
-      setDeployments(prev =>
-        prev.map(item => (item.id === activeTokenInstance.id ? { ...item, bot_token: inputToken } : item))
-      );
-      setTokenSavedSuccess(true);
-      setTimeout(() => {
-        setTokenSavedSuccess(false);
-        setActiveTokenInstance(null);
-      }, 1200);
+  // Handle Remove / Delete Instance
+  const handleDelete = async (instanceId: string) => {
+    if (confirm("Are you sure you want to remove this instance? This action cannot be undone.")) {
+      try {
+        await fetch("/api/instance/delete", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instanceId }),
+        });
+        fetchInstances();
+      } catch (err) {
+        console.error("Failed to delete instance", err);
+      }
     }
-    setSavingToken(false);
-  }
+  };
 
-  // Open Log Viewer Modal
-  function openLogs(containerId: string, templateId: string) {
-    setActiveLogContainer(containerId);
-    setLogContent([
-      `[SYS] Initializing runtime stream for container: ${containerId}`,
-      `[SYS] Loading configuration template: ${templateId}`,
-      `[INF] Allocated resources: 512MB RAM / 0.5 vCPU share`,
-      `[INF] Socket active on port 8080 (HTTPS/TLS)`,
-      `[OK] SSL certificates validated successfully.`,
-      `[OK] Connected to orchestration cluster.`,
-      `[RUN] Process PID 1042 listening for payload events...`,
-      `[LIVE] Health check passed (Latency: 18ms). Continuous execution active.`
-    ]);
-  }
+  // Open Setup Modal for Org/Use-Case
+  const openSetupModal = (instance: Instance) => {
+    setSelectedInstanceForSetup(instance);
+    setOrgType(instance.organization_type || "Individual");
+    setOrgName(instance.organization_name || "");
+    setUseCase(instance.use_case_description || "");
+  };
+
+  // Save Org/Use-Case Info
+  const handleSaveSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInstanceForSetup) return;
+
+    try {
+      await fetch("/api/instance/configure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instanceId: selectedInstanceForSetup.id,
+          organizationType: orgType,
+          organizationName: orgType === "Individual" ? "Individual Use" : orgName,
+          useCase,
+        }),
+      });
+      setSelectedInstanceForSetup(null);
+      fetchInstances();
+    } catch (err) {
+      console.error("Failed to save setup info", err);
+    }
+  };
+
+  // Calculate Days Remaining
+  const getDaysLeft = (expiresAt?: string) => {
+    if (!expiresAt) return 30;
+    const diff = new Date(expiresAt).getTime() - new Date().getTime();
+    const days = Math.ceil(diff / (1000 * 3600 * 24));
+    return days > 0 ? days : 0;
+  };
 
   return (
-    <div className="min-h-screen bg-[#0a0f1d] text-slate-100 p-6 md:p-12 relative overflow-hidden font-sans">
-      {/* Background Mesh */}
-      <div className="absolute inset-0 opacity-[0.15] pointer-events-none" style={{ backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.2) 1px, transparent 1px)`, backgroundSize: '24px 24px' }} />
-      <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-600/10 blur-[120px] rounded-full pointer-events-none" />
-
-      <div className="max-w-6xl mx-auto relative z-10">
-        {/* Top Header */}
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <Link href="/" className="inline-flex items-center gap-2 text-xs text-indigo-400 hover:text-indigo-300 mb-2 transition">
-              <ArrowLeft className="w-4 h-4" /> Back to Marketplace
-            </Link>
-            <h1 className="text-3xl font-bold tracking-tight">Agent Dashboard</h1>
-            <p className="text-slate-400 text-sm mt-1">
-              Active instances registered to <span className="text-slate-200 font-medium">{userEmail}</span>
-            </p>
-          </div>
-          <button 
-            onClick={fetchUserAndDeployments}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800/80 hover:bg-slate-700 rounded-lg text-xs font-medium border border-slate-700 transition"
+    <div className="min-h-screen bg-[#07090e] text-white p-6 md:p-10 font-sans">
+      {/* Dashboard Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div>
+          <a
+            href="/marketplace"
+            className="text-xs text-indigo-400 hover:underline mb-1 inline-block"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh Status
-          </button>
+            ← Back to Marketplace
+          </a>
+          <h1 className="text-3xl font-bold tracking-tight">Agent Dashboard</h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Active instances registered to your account
+          </p>
         </div>
-
-        {/* Deployments Grid */}
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
-            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-            <p className="text-sm">Fetching active AI deployments...</p>
-          </div>
-        ) : deployments.length === 0 ? (
-          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-12 text-center backdrop-blur-sm">
-            <Bot className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-1">No Active Deployments</h3>
-            <p className="text-slate-400 text-sm mb-6">You haven't provisioned any 24/7 autonomous agent runners yet.</p>
-            <Link
-              href="/#marketplace"
-              className="inline-flex items-center px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition"
-            >
-              Deploy Your First Agent
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {deployments.map((instance) => {
-              const isRunning = instance.status === 'running';
-              return (
-                <div
-                  key={instance.id}
-                  className="bg-slate-900/60 border border-slate-800 hover:border-slate-700/80 rounded-xl p-6 relative transition backdrop-blur-sm shadow-xl flex flex-col justify-between"
-                >
-                  <div>
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20">
-                          <Cpu className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-base">{instance.name}</h3>
-                          <p className="text-xs text-slate-400 font-mono mt-0.5">{instance.container_id}</p>
-                        </div>
-                      </div>
-                      
-                      <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                        isRunning 
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                      }`}>
-                        <CheckCircle className="w-3 h-3" /> {instance.status ? instance.status.toUpperCase() : 'RUNNING'}
-                      </span>
-                    </div>
-
-                    {/* Meta Details */}
-                    <div className="bg-slate-950/80 rounded-lg p-3.5 border border-slate-800/80 font-mono text-xs text-slate-400 mb-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Template ID:</span>
-                        <span className="text-slate-300 font-semibold">{instance.template_id}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">API Credentials:</span>
-                        {instance.bot_token ? (
-                          <span className="text-emerald-400 font-medium flex items-center gap-1">
-                            <Check className="w-3 h-3" /> Configured
-                          </span>
-                        ) : (
-                          <span className="text-amber-400 font-medium">Pending Setup</span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Provisioned:</span>
-                        <span className="text-slate-300">
-                          {instance.created_at ? new Date(instance.created_at).toLocaleDateString() : 'Just now'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Metrics Bar */}
-                    <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-800/50 mb-5 flex items-center justify-between text-xs text-slate-400">
-                      <div className="flex items-center gap-2">
-                        <Activity className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>CPU: <strong className="text-slate-200">{isRunning ? '2.4%' : '0.0%'}</strong></span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Server className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>RAM: <strong className="text-slate-200">{isRunning ? '128MB / 512MB' : '0MB'}</strong></span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions Bar */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
-                    <button 
-                      onClick={() => openLogs(instance.container_id, instance.template_id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg border border-slate-700 transition"
-                    >
-                      <Terminal className="w-3.5 h-3.5" /> Logs
-                    </button>
-
-                    <button 
-                      onClick={() => {
-                        setActiveTokenInstance(instance);
-                        setInputToken(instance.bot_token || '');
-                      }}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium rounded-lg transition"
-                    >
-                      <Key className="w-3.5 h-3.5" /> Bot Token
-                    </button>
-
-                    <button 
-                      onClick={() => toggleStatus(instance.id, instance.status || 'running')}
-                      disabled={actionLoading === instance.id}
-                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition flex items-center gap-1 ${
-                        isRunning 
-                          ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20' 
-                          : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
-                      }`}
-                      title={isRunning ? "Stop Instance" : "Start Instance"}
-                    >
-                      {actionLoading === instance.id ? (
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      ) : isRunning ? (
-                        <Power className="w-3.5 h-3.5" />
-                      ) : (
-                        <Play className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <button
+          onClick={fetchInstances}
+          className="px-4 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg border border-slate-700 transition flex items-center gap-2 self-start md:self-auto"
+        >
+          🔄 Refresh Status
+        </button>
       </div>
 
-      {/* Bot Token Modal */}
-      {activeTokenInstance && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl shadow-2xl p-6 relative">
-            <button 
-              onClick={() => setActiveTokenInstance(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 transition"
+      {/* Instances Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {instances.map((instance) => {
+          const daysLeft = getDaysLeft(instance.expires_at);
+
+          return (
+            <div
+              key={instance.id}
+              className="bg-[#0e131f] border border-slate-800/80 rounded-xl p-6 flex flex-col justify-between hover:border-slate-700 transition shadow-xl"
             >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20">
-                <Key className="w-5 h-5" />
-              </div>
               <div>
-                <h3 className="font-semibold text-sm">Configure Agent Credentials</h3>
-                <p className="text-xs text-slate-400">{activeTokenInstance.name}</p>
+                {/* Header Row */}
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-indigo-950/60 text-indigo-400 border border-indigo-800/50 rounded-lg">
+                      🤖
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg text-white">
+                        {instance.template_name}
+                      </h3>
+                      <p className="text-xs text-slate-500 font-mono">
+                        {instance.id}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                      instance.status === "RUNNING"
+                        ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800/60"
+                        : "bg-amber-950/80 text-amber-400 border border-amber-800/60"
+                    }`}
+                  >
+                    {instance.status}
+                  </span>
+                </div>
+
+                {/* Instance Details */}
+                <div className="space-y-2 my-4 text-xs font-mono text-slate-400 bg-[#080b12] p-3.5 rounded-lg border border-slate-800/50">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Template ID:</span>
+                    <span className="text-slate-300 font-semibold">
+                      {instance.template_id || "n8n-workflow"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Scope:</span>
+                    <span className="text-slate-200">
+                      {instance.organization_name || "Individual Use"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Subscription Left:</span>
+                    <span
+                      className={`font-bold ${
+                        daysLeft <= 3 ? "text-red-400" : "text-emerald-400"
+                      }`}
+                    >
+                      {daysLeft} Days Remaining
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-800/60">
+                {/* Logs Stream Button */}
+                <button
+                  onClick={() => setActiveLogContainer(instance.id)}
+                  className="flex-1 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition"
+                >
+                  &gt;_ Logs
+                </button>
+
+                {/* Bot Token Config Button */}
+                <button
+                  onClick={() => setActiveTokenModal(instance)}
+                  className="flex-1 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition"
+                >
+                  🔑 Bot Token
+                </button>
+
+                {/* Org Setup Details Button */}
+                <button
+                  onClick={() => openSetupModal(instance)}
+                  className="p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition"
+                  title="Configure Usage Details"
+                >
+                  ⚙️
+                </button>
+
+                {/* Power Toggle Button */}
+                <button
+                  onClick={() => togglePower(instance)}
+                  className={`p-2 rounded-lg border transition ${
+                    instance.status === "RUNNING"
+                      ? "bg-red-950/40 text-red-400 border-red-800/50 hover:bg-red-900/60"
+                      : "bg-emerald-950/40 text-emerald-400 border-emerald-800/50 hover:bg-emerald-900/60"
+                  }`}
+                  title={instance.status === "RUNNING" ? "Stop Instance" : "Start Instance"}
+                >
+                  ⏻
+                </button>
+
+                {/* Delete / Remove Button */}
+                <button
+                  onClick={() => handleDelete(instance.id)}
+                  className="p-2 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-800/50 rounded-lg transition"
+                  title="Remove Instance"
+                >
+                  🗑️
+                </button>
               </div>
             </div>
+          );
+        })}
+      </div>
 
-            <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-              Enter your Telegram Bot API Token obtained from <strong className="text-slate-200">@BotFather</strong> to connect your bot logic to this runner.
-            </p>
-
-            <div className="space-y-3 mb-6">
-              <input 
-                type="text" 
-                value={inputToken}
-                onChange={(e) => setInputToken(e.target.value)}
-                placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500 transition"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2">
-              <button 
-                onClick={() => setActiveTokenInstance(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg text-slate-300 transition"
+      {/* --- MODAL 1: Live Terminal Log Console --- */}
+      {activeLogContainer && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0b0e17] border border-slate-800 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl">
+            <div className="px-5 py-3 bg-[#080b12] border-b border-slate-800 flex justify-between items-center">
+              <span className="text-xs font-mono text-slate-400">
+                Console Stream — {activeLogContainer}
+              </span>
+              <button
+                onClick={() => setActiveLogContainer(null)}
+                className="text-slate-400 hover:text-white text-sm"
               >
-                Cancel
+                ✕
               </button>
-              <button 
-                onClick={saveBotToken}
-                disabled={savingToken}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-medium rounded-lg text-white transition flex items-center gap-1.5"
+            </div>
+            <div className="p-5 font-mono text-xs text-emerald-400 bg-[#05070c] h-80 overflow-y-auto space-y-1">
+              <p className="text-slate-500">[SYSTEM] Initializing stream socket connection...</p>
+              <p className="text-slate-500">[SYSTEM] Connected to instance runner container.</p>
+              <p>[INFO] Telegram webhook listener bound to 0.0.0.0:10000</p>
+              <p>[INFO] Polling cycle active — 0 active errors.</p>
+              <p className="text-slate-400">[METRICS] CPU: 0.4% | Memory: 128MB / 512MB</p>
+            </div>
+            <div className="px-5 py-2.5 bg-[#080b12] border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+              <span>Status: Stream Connected</span>
+              <button
+                onClick={() => setActiveLogContainer(null)}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition"
               >
-                {savingToken ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving...
-                  </>
-                ) : tokenSavedSuccess ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Saved!
-                  </>
-                ) : (
-                  'Save Token'
-                )}
+                Close Console
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Terminal Console Logs Modal */}
-      {activeLogContainer && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-950 border border-slate-800 w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between bg-slate-900/80 px-4 py-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-indigo-400" />
-                <span className="font-mono text-xs font-medium text-slate-200">
-                  Container Stream Output — {activeLogContainer}
-                </span>
+      {/* --- MODAL 2: Bot Token Configuration --- */}
+      {activeTokenModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0e131f] border border-slate-800 p-6 rounded-2xl w-full max-w-md text-white shadow-2xl">
+            <h2 className="text-xl font-bold mb-2">Bot Token Setup</h2>
+            <p className="text-xs text-slate-400 mb-4">
+              Enter your Telegram Bot API token from @BotFather
+            </p>
+            <input
+              type="text"
+              defaultValue={activeTokenModal.telegram_token || ""}
+              placeholder="e.g. 123456789:ABCdefGhIJK..."
+              className="w-full bg-[#080b12] border border-slate-700 p-3 rounded-lg text-sm text-white outline-none mb-4 focus:border-indigo-500"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setActiveTokenModal(null)}
+                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setActiveTokenModal(null)}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition"
+              >
+                Save Token
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 3: Organization & Use Case Setup --- */}
+      {selectedInstanceForSetup && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0e131f] border border-slate-800 p-6 rounded-2xl w-full max-w-md text-white shadow-2xl">
+            <h2 className="text-xl font-bold mb-1">Deployment Scope & Purpose</h2>
+            <p className="text-xs text-slate-400 mb-5">
+              Specify where and how this instance is deployed.
+            </p>
+
+            <form onSubmit={handleSaveSetup} className="space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Deployment Scope
+                </label>
+                <select
+                  value={orgType}
+                  onChange={(e) => setOrgType(e.target.value)}
+                  className="w-full bg-[#080b12] border border-slate-700 p-2.5 rounded-lg text-white outline-none focus:border-indigo-500"
+                >
+                  <option value="Individual">Individual / Personal Use</option>
+                  <option value="Organization">Organization / Company</option>
+                </select>
               </div>
-              <button 
-                onClick={() => setActiveLogContainer(null)}
-                className="text-slate-400 hover:text-slate-100 p-1 rounded-md transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="p-4 font-mono text-xs text-emerald-400/90 bg-slate-950 h-64 overflow-y-auto space-y-1.5 border-b border-slate-900">
-              {logContent.map((line, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <span className="text-slate-600 select-none">$</span>
-                  <span>{line}</span>
+              {orgType === "Organization" && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    Organization / Company Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Acme Trading Corp"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    className="w-full bg-[#080b12] border border-slate-700 p-2.5 rounded-lg text-white outline-none focus:border-indigo-500"
+                  />
                 </div>
-              ))}
-            </div>
+              )}
 
-            <div className="px-4 py-2.5 bg-slate-900/50 flex justify-between items-center text-[11px] text-slate-500 font-mono">
-              <span>Status: Stream Connected</span>
-              <button 
-                onClick={() => setActiveLogContainer(null)}
-                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs transition"
-              >
-                Close Console
-              </button>
-            </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Primary Intended Use Case
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="e.g. Automated crypto trading notifications for personal group channel"
+                  value={useCase}
+                  onChange={(e) => setUseCase(e.target.value)}
+                  className="w-full bg-[#080b12] border border-slate-700 p-2.5 rounded-lg text-white outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedInstanceForSetup(null)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 font-semibold rounded-lg transition"
+                >
+                  Save Details
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

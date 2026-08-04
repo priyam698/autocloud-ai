@@ -13,7 +13,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const message = body.message;
 
-    // Ignore non-text updates or empty requests
     if (!message || !message.text) {
       return NextResponse.json({ ok: true });
     }
@@ -21,7 +20,7 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userText = message.text;
 
-    // 1. DYNAMIC LOOKUP: Get active customer bot token from Supabase deployments
+    // 1. Fetch active customer bot_token dynamically from Supabase
     const { data: deployment, error: dbError } = await supabase
       .from('deployments')
       .select('bot_token')
@@ -38,24 +37,24 @@ export async function POST(req: Request) {
     const botToken = deployment.bot_token;
     let replyText = '';
 
-    // 2. LLAMA 3 INTEGRATION: Call Groq API endpoint
-    const groqApiKey = process.env.GROQ_API_KEY;
+    // 2. Call Cerebras AI API
+    const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
 
-    if (!groqApiKey) {
-      replyText = 'Configuration Error: GROQ_API_KEY is missing on server.';
+    if (!cerebrasApiKey) {
+      replyText = 'Configuration Error: CEREBRAS_API_KEY is missing on server.';
     } else {
-      const llamaRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const cerebrasRes = await fetch('https://api.cerebras.ai/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${groqApiKey}`,
+          'Authorization': `Bearer ${cerebrasApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
+          model: 'llama3.1-8b',
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful AI assistant powered by Llama 3 running on Telegram.',
+              content: 'You are a helpful, ultra-fast AI assistant powered by Cerebras running on Telegram.',
             },
             {
               role: 'user',
@@ -66,16 +65,17 @@ export async function POST(req: Request) {
         }),
       });
 
-      const llamaData = await llamaRes.json();
+      const cerebrasData = await cerebrasRes.json();
 
-      if (llamaRes.ok && llamaData.choices?.[0]?.message?.content) {
-        replyText = llamaData.choices[0].message.content;
+      if (cerebrasRes.ok && cerebrasData.choices?.[0]?.message?.content) {
+        replyText = cerebrasData.choices[0].message.content;
       } else {
-        replyText = `Llama Error: ${llamaData.error?.message || 'Failed to generate response.'}`;
+        console.error('[Cerebras Error]:', cerebrasData);
+        replyText = `Cerebras Error: ${cerebrasData.error?.message || 'Failed to generate response.'}`;
       }
     }
 
-    // 3. TELEGRAM SEND: Send back response using the customer's dynamic botToken from DB
+    // 3. Send response back to Telegram
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -11,9 +11,9 @@ export async function POST(req: Request) {
     const customData = event.meta?.custom_data || {};
     const attributes = event.data?.attributes || {};
 
-    console.log(`[LemonSqueezy Webhook] Processing event: ${eventName}`);
+    console.log(`[LemonSqueezy Webhook] Event: ${eventName}`);
 
-    // Create Supabase client with Service Role Key to bypass RLS policies
+    // Create Supabase client with Service Role Key
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseServiceKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -21,45 +21,42 @@ export async function POST(req: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // List of events that indicate a completed payment/subscription
+    // List of events that indicate an active order or subscription
     const allowedEvents = [
-      'order_created',
       'subscription_created',
       'subscription_payment_success',
+      'order_created',
       'license_key_created',
     ];
 
     if (allowedEvents.includes(eventName)) {
-      // Extract Email safely across all Lemon Squeezy webhook schemas
+      // 1. Extract Email safely across payload structures
       const userEmail =
         attributes.user_email ||
         attributes.customer_email ||
-        attributes.user_email_address ||
         customData.user_email ||
         'customer@autocloud.ai';
 
-      // Extract Product/Service Name safely
-      const productName =
-        attributes.first_order_item?.product_name ||
+      // 2. Extract Template Name & ID directly from meta.custom_data or attributes
+      const templateName =
+        customData.template_name ||
         attributes.product_name ||
-        attributes.billing_reason ||
+        attributes.first_order_item?.product_name ||
         'Telegram AI Bot Runner';
 
-      // Determine template ID based on product title
-      let templateId = 'telegram-ai-bot';
-      if (productName.toLowerCase().includes('n8n')) {
-        templateId = 'n8n-workflow';
-      }
+      const templateId =
+        customData.template_id ||
+        (templateName.toLowerCase().includes('n8n') ? 'n8n-workflow' : 'telegram-ai-bot');
 
       const instanceId = crypto.randomUUID();
-      const accessPassword = crypto.randomBytes(6).toString('hex');
+      const accessPassword = crypto.randomBytes(6).toString('hex'); // Generate access password
 
-      // Perform insertion into Supabase
+      // 3. Insert record into Supabase 'deployments' table
       const { data, error: dbError } = await supabase
         .from('deployments')
         .insert({
           id: instanceId,
-          name: productName,
+          name: templateName,
           user_email: userEmail,
           status: 'running',
           template_id: templateId,
@@ -69,15 +66,14 @@ export async function POST(req: Request) {
         .select();
 
       if (dbError) {
-        console.error('[Supabase Insert Error]:', dbError);
-        // Returning 500 forces Lemon Squeezy to display the error text in the Response box
+        console.error('[Supabase Auto-Insert Error]:', dbError);
         return NextResponse.json(
           { error: 'Database Insert Failed', details: dbError.message },
           { status: 500 }
         );
       }
 
-      console.log('[Webhook Success] Instance Created:', instanceId);
+      console.log(`[Success] Deployment created: ${instanceId}`);
       return NextResponse.json({
         success: true,
         message: 'Instance created successfully',

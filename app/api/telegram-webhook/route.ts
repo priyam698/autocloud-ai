@@ -13,6 +13,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const message = body.message;
 
+    // Ignore non-text updates or empty payloads
     if (!message || !message.text) {
       return NextResponse.json({ ok: true });
     }
@@ -20,24 +21,28 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userText = message.text;
 
-    // 1. Fetch active customer bot_token dynamically from Supabase
+    // 1. DYNAMIC LOOKUP: Check Supabase for an active 'running' deployment
     const { data: deployment, error: dbError } = await supabase
       .from('deployments')
       .select('bot_token')
       .eq('status', 'running')
       .not('bot_token', 'is', null)
       .limit(1)
-      .single();
+      .maybeSingle();
 
+    // If no active instance is found (or deleted), stop execution immediately
     if (dbError || !deployment?.bot_token) {
-      console.error('[Webhook Error]: No active deployment bot_token found in Supabase.');
-      return NextResponse.json({ error: 'No bot token found' }, { status: 400 });
+      console.log('[Webhook Ignored]: No active instance found in database.');
+      return NextResponse.json(
+        { message: 'No active deployment running' },
+        { status: 200 }
+      );
     }
 
     const botToken = deployment.bot_token;
     let replyText = '';
 
-    // 2. Call Cerebras AI API
+    // 2. CEREBRAS AI INTEGRATION: Call Llama 3.1 8B Model
     const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
 
     if (!cerebrasApiKey) {
@@ -75,7 +80,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Send response back to Telegram
+    // 3. SEND RESPONSE BACK TO TELEGRAM
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

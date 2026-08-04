@@ -21,23 +21,23 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userText = message.text;
 
-    // 1. DYNAMIC LOOKUP: Check Supabase for an active 'running' deployment
-    const { data: deployment, error: dbError } = await supabase
-      .from('deployments')
-      .select('bot_token')
-      .eq('status', 'running')
-      .not('bot_token', 'is', null)
-      .limit(1)
-      .maybeSingle();
+    // 1. DYNAMIC LOOKUP: Find the active deployment in Supabase
+const { data: deployment, error: dbError } = await supabase
+  .from('deployments')
+  .select('bot_token')
+  .eq('status', 'running')
+  .not('bot_token', 'is', null)
+  .limit(1)
+  .maybeSingle();
 
-    // If no active instance is found (or deleted), stop execution immediately
-    if (dbError || !deployment?.bot_token) {
-      console.log('[Webhook Ignored]: No active instance found in database.');
-      return NextResponse.json(
-        { message: 'No active deployment running' },
-        { status: 200 }
-      );
-    }
+// STRICT GUARD: If database returns empty or no running deployment exists
+if (dbError || !deployment || !deployment.bot_token) {
+  console.log('[Webhook Ignored]: No active instance found in database.');
+  return NextResponse.json(
+    { message: 'No active deployment running' },
+    { status: 200 }
+  );
+}
 
     const botToken = deployment.bot_token;
     let replyText = '';

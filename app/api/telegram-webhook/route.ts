@@ -54,7 +54,7 @@ export async function POST(req: Request) {
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful, ultra-fast AI assistant powered by Cerebras running on Telegram.',
+               content: 'You are Felix, an AI assistant running on Telegram. You provide quick, helpful answers without fake rate limits.',
             },
             {
               role: 'user',

@@ -8,7 +8,7 @@ const supabaseServiceKey =
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// --- PROVIDER 1: Cerebras AI ---
+// --- AI PROVIDER 1: CEREBRAS ---
 async function callCerebras(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
@@ -19,7 +19,10 @@ async function callCerebras(prompt: string, apiKey: string): Promise<string | nu
       },
       body: JSON.stringify({
         model: 'llama3.1-8b',
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
+          { role: 'user', content: prompt }
+        ],
         temperature: 0.7,
       }),
     });
@@ -38,7 +41,7 @@ async function callCerebras(prompt: string, apiKey: string): Promise<string | nu
   }
 }
 
-// --- PROVIDER 2: Groq AI ---
+// --- AI PROVIDER 2: GROQ (FALLBACK) ---
 async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -49,7 +52,10 @@ async function callGroq(prompt: string, apiKey: string): Promise<string | null> 
       },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
+          { role: 'user', content: prompt }
+        ],
         temperature: 0.7,
       }),
     });
@@ -68,7 +74,7 @@ async function callGroq(prompt: string, apiKey: string): Promise<string | null> 
   }
 }
 
-// --- PROVIDER 3: Gemini AI ---
+// --- AI PROVIDER 3: GEMINI (BACKUP) ---
 async function callGemini(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch(
@@ -111,7 +117,7 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userText = message.text.trim();
 
-    // 1. Command /start
+    // 1. Command Handler
     if (userText === '/start') {
       if (tokenFromQuery) {
         await fetch(`https://api.telegram.org/bot${tokenFromQuery}/sendMessage`, {
@@ -126,18 +132,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // 2. Resolve Active Bot Token
+    // 2. Resolve Active Bot Token & Check Subscription Gatekeeper
     let targetBotToken = tokenFromQuery;
 
     if (targetBotToken) {
       const { data: deployment } = await supabase
         .from('deployments')
-        .select('bot_token, status')
+        .select('bot_token, status, expires_at')
         .eq('bot_token', targetBotToken)
         .maybeSingle();
 
       if (!deployment || deployment.status !== 'running') {
         return NextResponse.json({ message: 'Deployment inactive' }, { status: 200 });
+      }
+
+      if (deployment.expires_at && new Date(deployment.expires_at) < new Date()) {
+        await supabase
+          .from('deployments')
+          .update({ status: 'expired' })
+          .eq('bot_token', targetBotToken);
+        return NextResponse.json({ message: 'Deployment expired' }, { status: 200 });
       }
     } else {
       const { data: deployment } = await supabase
@@ -149,12 +163,12 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       if (!deployment?.bot_token) {
-        return NextResponse.json({ message: 'No active deployment' }, { status: 200 });
+        return NextResponse.json({ message: 'No active deployment found' }, { status: 200 });
       }
       targetBotToken = deployment.bot_token;
     }
 
-    // 3. MULTI-PROVIDER EXECUTION
+    // 3. MULTI-PROVIDER AI PIPELINE (Cerebras -> Groq -> Gemini)
     let replyText: string | null = null;
 
     if (process.env.CEREBRAS_API_KEY) {
@@ -171,10 +185,10 @@ export async function POST(req: Request) {
     }
 
     if (!replyText) {
-      replyText = "I'm having a brief sync moment. Please ask me again in just a second!";
+      replyText = "I'm experiencing a brief system sync. Please ask me again in a moment!";
     }
 
-    // 4. Send Response
+    // 4. Send Message Back to Telegram
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

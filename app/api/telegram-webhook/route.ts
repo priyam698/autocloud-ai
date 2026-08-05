@@ -1,5 +1,49 @@
 import { NextResponse } from 'next/server';
 
+async function callCerebras(prompt: string, apiKey: string): Promise<string | null> {
+  const cleanKey = apiKey.trim();
+  // Candidate models supported by Cerebras API
+  const models = ['llama-3.3-70b', 'llama3.3-70b', 'llama3.1-8b'];
+
+  for (const model of models) {
+    try {
+      const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cleanKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are Felix, a helpful AI assistant on Telegram.',
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          temperature: 0.7,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.choices?.[0]?.message?.content) {
+        return data.choices[0].message.content;
+      } else {
+        console.error(`[Cerebras ${model} Error]:`, data);
+      }
+    } catch (err) {
+      console.error(`[Cerebras ${model} Exception]:`, err);
+    }
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
@@ -8,7 +52,6 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const message = body?.message;
 
-    // Ignore empty updates or non-text messages silently
     if (!message || !message.text) {
       return NextResponse.json({ ok: true });
     }
@@ -16,7 +59,6 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userText = message.text.trim();
 
-    // Determine target Telegram token
     const targetBotToken = tokenFromQuery || process.env.TELEGRAM_BOT_TOKEN;
 
     if (!targetBotToken) {
@@ -36,44 +78,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // Call Cerebras API
+    // Execute Cerebras Inference
     const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
-    let replyText = '';
+    let replyText: string | null = null;
 
     if (!cerebrasApiKey) {
       replyText = 'Configuration Error: CEREBRAS_API_KEY environment variable is missing on Vercel.';
     } else {
-      try {
-        const cerebrasRes = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${cerebrasApiKey.trim()}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'llama3.1-8b',
-            messages: [
-              { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
-              { role: 'user', content: userText }
-            ],
-            temperature: 0.7,
-          }),
-        });
-
-        const cerebrasData = await cerebrasRes.json();
-
-        if (cerebrasRes.ok && cerebrasData.choices?.[0]?.message?.content) {
-          replyText = cerebrasData.choices[0].message.content;
-        } else {
-          // Send exact API error to Telegram so we see what failed
-          replyText = `Cerebras Error [${cerebrasRes.status}]: ${JSON.stringify(cerebrasData)}`;
-        }
-      } catch (err: any) {
-        replyText = `Fetch Error: ${err.message}`;
-      }
+      replyText = await callCerebras(userText, cerebrasApiKey);
     }
 
-    // Send response back to Telegram
+    if (!replyText) {
+      replyText = "I'm having a brief connection sync. Please ask me again in just a second!";
+    }
+
+    // Send Message Back to Telegram
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

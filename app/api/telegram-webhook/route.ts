@@ -1,5 +1,81 @@
 import { NextResponse } from 'next/server';
 
+// 1. CEREBRAS API (llama3.1-8b)
+async function callCerebras(prompt: string, apiKey: string): Promise<string | null> {
+  try {
+    const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama3.1-8b',
+        messages: [
+          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+      }),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || null;
+  } catch {
+    return null;
+  }
+}
+
+// 2. GROQ API (llama-3.3-70b-versatile)
+async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+      }),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || null;
+  } catch {
+    return null;
+  }
+}
+
+// 3. GEMINI API (gemini-2.0-flash)
+async function callGemini(prompt: string, apiKey: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey.trim()}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      }
+    );
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
@@ -32,110 +108,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    const logs: string[] = [];
     let replyText: string | null = null;
 
-    // 1. TRY CEREBRAS
-    const cerebrasKey = process.env.CEREBRAS_API_KEY;
-    if (!cerebrasKey) {
-      logs.push("Cerebras: Key missing in Vercel env");
-    } else {
-      try {
-        const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${cerebrasKey.trim()}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b',
-            messages: [
-              { role: 'system', content: 'You are Felix, a helpful AI assistant.' },
-              { role: 'user', content: userText }
-            ],
-            temperature: 0.7,
-          }),
-        });
-        const data = await res.json();
-        if (res.ok && data.choices?.[0]?.message?.content) {
-          replyText = data.choices[0].message.content;
-        } else {
-          logs.push(`Cerebras (${res.status}): ${data?.error?.message || JSON.stringify(data)}`);
-        }
-      } catch (err: any) {
-        logs.push(`Cerebras Exception: ${err.message}`);
-      }
+    // Pipeline execution: Cerebras -> Groq -> Gemini
+    if (process.env.CEREBRAS_API_KEY) {
+      replyText = await callCerebras(userText, process.env.CEREBRAS_API_KEY);
     }
 
-    // 2. TRY GROQ (IF CEREBRAS FAILED)
+    if (!replyText && process.env.GROQ_API_KEY) {
+      replyText = await callGroq(userText, process.env.GROQ_API_KEY);
+    }
+
+    const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
+    if (!replyText && geminiKey) {
+      replyText = await callGemini(userText, geminiKey);
+    }
+
     if (!replyText) {
-      const groqKey = process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY;
-      if (!groqKey) {
-        logs.push("Groq: Key missing in Vercel env");
-      } else {
-        try {
-          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${groqKey.trim()}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'llama-3.3-70b-versatile',
-              messages: [
-                { role: 'system', content: 'You are Felix, a helpful AI assistant.' },
-                { role: 'user', content: userText }
-              ],
-              temperature: 0.7,
-            }),
-          });
-          const data = await res.json();
-          if (res.ok && data.choices?.[0]?.message?.content) {
-            replyText = data.choices[0].message.content;
-          } else {
-            logs.push(`Groq (${res.status}): ${data?.error?.message || JSON.stringify(data)}`);
-          }
-        } catch (err: any) {
-          logs.push(`Groq Exception: ${err.message}`);
-        }
-      }
+      replyText = "I'm having a brief connection sync. Please ask me again in just a second!";
     }
 
-    // 3. TRY GEMINI (IF GROQ FAILED)
-    if (!replyText) {
-      const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
-      if (!geminiKey) {
-        logs.push("Gemini: Key missing in Vercel env");
-      } else {
-        try {
-          const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey.trim()}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: userText }] }],
-              }),
-            }
-          );
-          const data = await res.json();
-          if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            replyText = data.candidates[0].content.parts[0].text;
-          } else {
-            logs.push(`Gemini (${res.status}): ${data?.error?.message || JSON.stringify(data)}`);
-          }
-        } catch (err: any) {
-          logs.push(`Gemini Exception: ${err.message}`);
-        }
-      }
-    }
-
-    // Fallback output with diagnostic logs
-    if (!replyText) {
-      replyText = `⚠️ Diagnostic Logs:\n` + logs.join('\n');
-    }
-
-    // Send Message Back
+    // Send Message
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

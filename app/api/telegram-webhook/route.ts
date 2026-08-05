@@ -19,23 +19,26 @@ async function callCerebras(prompt: string, apiKey: string): Promise<string | nu
       },
       body: JSON.stringify({
         model: 'llama3.1-8b',
-        messages: [
-          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
-          { role: 'user', content: prompt }
-        ],
+        messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
       }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.text();
+      console.error(`[Cerebras ${res.status} Error]:`, err);
+      return null;
+    }
+
     const data = await res.json();
     return data.choices?.[0]?.message?.content || null;
-  } catch {
+  } catch (err) {
+    console.error('[Cerebras Exception]:', err);
     return null;
   }
 }
 
-// --- PROVIDER 2: Groq AI (Fallback) ---
+// --- PROVIDER 2: Groq AI ---
 async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -46,23 +49,26 @@ async function callGroq(prompt: string, apiKey: string): Promise<string | null> 
       },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
-          { role: 'user', content: prompt }
-        ],
+        messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
       }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.text();
+      console.error(`[Groq ${res.status} Error]:`, err);
+      return null;
+    }
+
     const data = await res.json();
     return data.choices?.[0]?.message?.content || null;
-  } catch {
+  } catch (err) {
+    console.error('[Groq Exception]:', err);
     return null;
   }
 }
 
-// --- PROVIDER 3: Gemini AI (Backup) ---
+// --- PROVIDER 3: Gemini AI ---
 async function callGemini(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch(
@@ -76,10 +82,16 @@ async function callGemini(prompt: string, apiKey: string): Promise<string | null
       }
     );
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.text();
+      console.error(`[Gemini ${res.status} Error]:`, err);
+      return null;
+    }
+
     const data = await res.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-  } catch {
+  } catch (err) {
+    console.error('[Gemini Exception]:', err);
     return null;
   }
 }
@@ -107,14 +119,14 @@ export async function POST(req: Request) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: chatId,
-            text: "Hello! I'm Felix, your AI Telegram assistant. How can I help you today?",
+            text: "Hello! I'm Felix, your AI Telegram assistant. Ask me anything!",
           }),
         }).catch(() => {});
       }
       return NextResponse.json({ ok: true });
     }
 
-    // 2. Resolve target token & DB Verification
+    // 2. Resolve Active Bot Token
     let targetBotToken = tokenFromQuery;
 
     if (targetBotToken) {
@@ -137,36 +149,32 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       if (!deployment?.bot_token) {
-        return NextResponse.json({ message: 'No active deployment found' }, { status: 200 });
+        return NextResponse.json({ message: 'No active deployment' }, { status: 200 });
       }
       targetBotToken = deployment.bot_token;
     }
 
-    // 3. EXECUTE MULTI-PROVIDER AI PIPELINE
+    // 3. MULTI-PROVIDER EXECUTION
     let replyText: string | null = null;
 
-    // Try Cerebras first
     if (process.env.CEREBRAS_API_KEY) {
       replyText = await callCerebras(userText, process.env.CEREBRAS_API_KEY);
     }
 
-    // Fallback to Groq
     if (!replyText && process.env.GROQ_API_KEY) {
       replyText = await callGroq(userText, process.env.GROQ_API_KEY);
     }
 
-    // Backup with Gemini
     const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
     if (!replyText && geminiKey) {
       replyText = await callGemini(userText, geminiKey);
     }
 
-    // Emergency response if all providers fail
     if (!replyText) {
       replyText = "I'm having a brief sync moment. Please ask me again in just a second!";
     }
 
-    // 4. Send response to Telegram
+    // 4. Send Response
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -178,7 +186,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('[Webhook Critical Error]:', err);
+    console.error('[Fatal Webhook Error]:', err);
     return NextResponse.json({ ok: true });
   }
 }

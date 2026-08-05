@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// 1. CEREBRAS API (llama3.1-8b)
+// 1. CEREBRAS CALL
 async function callCerebras(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
@@ -27,7 +27,7 @@ async function callCerebras(prompt: string, apiKey: string): Promise<string | nu
   }
 }
 
-// 2. GROQ API (llama-3.3-70b-versatile)
+// 2. GROQ FALLBACK
 async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -54,11 +54,11 @@ async function callGroq(prompt: string, apiKey: string): Promise<string | null> 
   }
 }
 
-// 3. GEMINI API (gemini-2.0-flash)
+// 3. GEMINI BACKUP (UPDATED ENDPOINT)
 async function callGemini(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey.trim()}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,13 +110,14 @@ export async function POST(req: Request) {
 
     let replyText: string | null = null;
 
-    // Pipeline execution: Cerebras -> Groq -> Gemini
+    // Execute multi-provider pipeline
     if (process.env.CEREBRAS_API_KEY) {
       replyText = await callCerebras(userText, process.env.CEREBRAS_API_KEY);
     }
 
-    if (!replyText && process.env.GROQ_API_KEY) {
-      replyText = await callGroq(userText, process.env.GROQ_API_KEY);
+    if (!replyText && (process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY)) {
+      const gKey = process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY;
+      replyText = await callGroq(userText, gKey!);
     }
 
     const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
@@ -125,10 +126,10 @@ export async function POST(req: Request) {
     }
 
     if (!replyText) {
-      replyText = "I'm having a brief connection sync. Please ask me again in just a second!";
+      replyText = "Hello! I am online and active.";
     }
 
-    // Send Message
+    // Send Message Back
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

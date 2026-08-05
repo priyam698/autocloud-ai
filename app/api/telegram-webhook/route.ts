@@ -1,33 +1,38 @@
 import { NextResponse } from 'next/server';
 
-// 1. CEREBRAS CALL
+// 1. CEREBRAS INFERENCE
 async function callCerebras(prompt: string, apiKey: string): Promise<string | null> {
-  try {
-    const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey.trim()}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama3.1-8b',
-        messages: [
-          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-      }),
-    });
+  const models = ['llama3.1-8b', 'llama-3.3-70b'];
+  for (const model of models) {
+    try {
+      const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey.trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.7,
+        }),
+      });
 
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || null;
-  } catch {
-    return null;
+      if (!res.ok) continue;
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content;
+      if (text) return text;
+    } catch (err) {
+      console.error(`[Cerebras Error]:`, err);
+    }
   }
+  return null;
 }
 
-// 2. GROQ FALLBACK
+// 2. GROQ INFERENCE
 async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -49,31 +54,37 @@ async function callGroq(prompt: string, apiKey: string): Promise<string | null> 
     if (!res.ok) return null;
     const data = await res.json();
     return data.choices?.[0]?.message?.content || null;
-  } catch {
+  } catch (err) {
+    console.error(`[Groq Error]:`, err);
     return null;
   }
 }
 
-// 3. GEMINI BACKUP (UPDATED ENDPOINT)
+// 3. GEMINI INFERENCE
 async function callGemini(prompt: string, apiKey: string): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      }
-    );
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash'];
+  for (const model of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+          }),
+        }
+      );
 
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-  } catch {
-    return null;
+      if (!res.ok) continue;
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) return text;
+    } catch (err) {
+      console.error(`[Gemini Error]:`, err);
+    }
   }
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -110,26 +121,32 @@ export async function POST(req: Request) {
 
     let replyText: string | null = null;
 
-    // Execute multi-provider pipeline
+    // 1. Primary: Cerebras
     if (process.env.CEREBRAS_API_KEY) {
       replyText = await callCerebras(userText, process.env.CEREBRAS_API_KEY);
     }
 
-    if (!replyText && (process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY)) {
-      const gKey = process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY;
-      replyText = await callGroq(userText, gKey!);
+    // 2. Secondary: Groq
+    if (!replyText) {
+      const groqKey = process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY;
+      if (groqKey) {
+        replyText = await callGroq(userText, groqKey);
+      }
     }
 
-    const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
-    if (!replyText && geminiKey) {
-      replyText = await callGemini(userText, geminiKey);
+    // 3. Tertiary: Gemini
+    if (!replyText) {
+      const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
+      if (geminiKey) {
+        replyText = await callGemini(userText, geminiKey);
+      }
     }
 
     if (!replyText) {
-      replyText = "Hello! I am online and active.";
+      replyText = "I could not generate a response at the moment. Please verify your API keys in Vercel.";
     }
 
-    // Send Message Back
+    // Send Message Back to Telegram
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

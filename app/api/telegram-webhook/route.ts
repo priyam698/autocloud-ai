@@ -21,28 +21,25 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userText = message.text;
 
-    // 1. DYNAMIC LOOKUP: Find the active deployment in Supabase
-const { data: deployment, error: dbError } = await supabase
-  .from('deployments')
-  .select('bot_token')
-  .eq('status', 'running')
-  .not('bot_token', 'is', null)
-  .limit(1)
-  .maybeSingle();
+    // 1. DYNAMIC LOOKUP: Find the active running deployment in Supabase
+    const { data: deployment, error: dbError } = await supabase
+      .from('deployments')
+      .select('bot_token')
+      .eq('status', 'running')
+      .not('bot_token', 'is', null)
+      .limit(1)
+      .maybeSingle();
 
-// STRICT GUARD: If database returns empty or no running deployment exists
-if (dbError || !deployment || !deployment.bot_token) {
-  console.log('[Webhook Ignored]: No active instance found in database.');
-  return NextResponse.json(
-    { message: 'No active deployment running' },
-    { status: 200 }
-  );
-}
+    // STRICT GUARD: If no active deployment exists, exit silently
+    if (dbError || !deployment || !deployment.bot_token) {
+      console.log('[Webhook Ignored]: No active instance found in database.');
+      return NextResponse.json({ message: 'No active deployment running' }, { status: 200 });
+    }
 
     const botToken = deployment.bot_token;
     let replyText = '';
 
-    // 2. CEREBRAS AI INTEGRATION: Call Llama 3.1 8B Model
+    // 2. CEREBRAS AI INTEGRATION
     const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
 
     if (!cerebrasApiKey) {
@@ -55,11 +52,11 @@ if (dbError || !deployment || !deployment.bot_token) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama3.1-8b',
+          model: 'llama-3.3-70b',
           messages: [
             {
               role: 'system',
-              content: 'You are Felix, a helpful AI assistant running on Telegram.',
+              content: 'You are Felix, an AI assistant running on Telegram.',
             },
             {
               role: 'user',
@@ -67,6 +64,7 @@ if (dbError || !deployment || !deployment.bot_token) {
             },
           ],
           temperature: 0.7,
+          max_completion_tokens: 1024,
         }),
       });
 
@@ -75,7 +73,7 @@ if (dbError || !deployment || !deployment.bot_token) {
       if (cerebrasRes.ok && cerebrasData.choices?.[0]?.message?.content) {
         replyText = cerebrasData.choices[0].message.content;
       } else {
-        console.error('[Cerebras Error]:', cerebrasData);
+        console.error('[Cerebras Error API Details]:', cerebrasData);
         replyText = `Cerebras Error: ${cerebrasData.error?.message || 'Failed to generate response.'}`;
       }
     }

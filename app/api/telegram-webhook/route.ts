@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
-// 1. CEREBRAS INFERENCE
+// 1. CEREBRAS API CALL
 async function callCerebras(prompt: string, apiKey: string): Promise<string | null> {
-  const models = ['llama3.1-8b', 'llama-3.3-70b'];
+  const models = ['llama3.1-8b', 'llama3.1-70b'];
   for (const model of models) {
     try {
       const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
@@ -23,8 +23,8 @@ async function callCerebras(prompt: string, apiKey: string): Promise<string | nu
 
       if (!res.ok) continue;
       const data = await res.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (text) return text;
+      const content = data.choices?.[0]?.message?.content;
+      if (content) return content;
     } catch (err) {
       console.error(`[Cerebras Error]:`, err);
     }
@@ -32,7 +32,7 @@ async function callCerebras(prompt: string, apiKey: string): Promise<string | nu
   return null;
 }
 
-// 2. GROQ INFERENCE
+// 2. GROQ API CALL
 async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -60,7 +60,7 @@ async function callGroq(prompt: string, apiKey: string): Promise<string | null> 
   }
 }
 
-// 3. GEMINI INFERENCE
+// 3. GEMINI API CALL
 async function callGemini(prompt: string, apiKey: string): Promise<string | null> {
   const models = ['gemini-1.5-flash', 'gemini-2.0-flash'];
   for (const model of models) {
@@ -78,8 +78,8 @@ async function callGemini(prompt: string, apiKey: string): Promise<string | null
 
       if (!res.ok) continue;
       const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) return text;
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (content) return content;
     } catch (err) {
       console.error(`[Gemini Error]:`, err);
     }
@@ -107,6 +107,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No Telegram bot token found' }, { status: 200 });
     }
 
+    // Command Handler
     if (userText === '/start') {
       await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
         method: 'POST',
@@ -121,12 +122,11 @@ export async function POST(req: Request) {
 
     let replyText: string | null = null;
 
-    // 1. Primary: Cerebras
+    // Pipeline: Cerebras -> Groq -> Gemini
     if (process.env.CEREBRAS_API_KEY) {
       replyText = await callCerebras(userText, process.env.CEREBRAS_API_KEY);
     }
 
-    // 2. Secondary: Groq
     if (!replyText) {
       const groqKey = process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY;
       if (groqKey) {
@@ -134,7 +134,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Tertiary: Gemini
     if (!replyText) {
       const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
       if (geminiKey) {
@@ -146,7 +145,7 @@ export async function POST(req: Request) {
       replyText = "I could not generate a response at the moment. Please verify your API keys in Vercel.";
     }
 
-    // Send Message Back to Telegram
+    // Send Message
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

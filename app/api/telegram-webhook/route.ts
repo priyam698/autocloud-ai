@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     const url = new URL(req.url);
     const tokenFromQuery = url.searchParams.get('token')?.trim();
 
-    // 1. STRICT CHECK: If no bot token is supplied in the webhook URL query, ignore immediately
+    // 1. If no bot token is in the webhook URL query, ignore immediately
     if (!tokenFromQuery) {
       return NextResponse.json({ ok: true });
     }
@@ -67,19 +67,19 @@ export async function POST(req: Request) {
     const userText = message.text.trim();
     const targetBotToken = tokenFromQuery;
 
-    // 2. DATABASE CHECK: Look up bot configuration in Supabase
+    // 2. Fetch bot state from Supabase
     const { data: botConfig } = await supabase
       .from('user_bots')
       .select('is_enabled, subscription_status, expires_at')
       .eq('telegram_bot_token', targetBotToken)
       .maybeSingle();
 
-    // 3. STRICT CHECK: If the bot is not in DB or is disabled/turned off, stay silent
+    // 3. If bot is not in DB or is disabled, stay silent
     if (!botConfig || !botConfig.is_enabled) {
       return NextResponse.json({ ok: true });
     }
 
-    // 4. SUBSCRIPTION CHECK: If subscription is expired or inactive
+    // 4. Handle subscription expiration
     const isExpired = botConfig.expires_at && new Date(botConfig.expires_at) < new Date();
     if (botConfig.subscription_status !== 'active' || isExpired) {
       await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // Process Message with Groq AI
+    // Process Message with Groq
     const groqKey = getEnvVar('GROQ_API_KEY');
     let replyText = await callGroq(userText, groqKey);
 
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
       replyText = "I'm currently busy. Please try again in a moment!";
     }
 
-    // Send Response Back to Telegram
+    // Send Reply
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

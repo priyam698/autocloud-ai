@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     }
 
     // 2. Register Webhook directly with Telegram API
-    const webhookUrl = `https://autocloud-ai-p448.vercel.app/api/telegram-webhook`;
+    const webhookUrl = `https://autocloud-ai-p448.vercel.app/api/telegram-webhook?token=${botToken}`;
     const tgRes = await fetch(
       `https://api.telegram.org/bot${botToken}/setWebhook?url=${encodeURIComponent(
         webhookUrl

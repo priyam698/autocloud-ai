@@ -5,15 +5,17 @@ function cleanKey(key?: string): string {
   return key.replace(/['"]/g, '').trim();
 }
 
-// 1. CEREBRAS
-async function callCerebras(prompt: string, apiKey: string): Promise<string | null> {
+// 1. PRIMARY: GROQ INFERENCE (Fastest + High Free Tier Limits)
+async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
   const token = cleanKey(apiKey);
   if (!token) return null;
 
-  const models = ['llama3.1-8b', 'llama-3.3-70b'];
+  // Groq's production models
+  const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+
   for (const model of models) {
     try {
-      const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -40,37 +42,7 @@ async function callCerebras(prompt: string, apiKey: string): Promise<string | nu
   return null;
 }
 
-// 2. GROQ
-async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
-  const token = cleanKey(apiKey);
-  if (!token) return null;
-
-  try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-      }),
-    });
-
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || null;
-  } catch {
-    return null;
-  }
-}
-
-// 3. GEMINI
+// 2. BACKUP: GEMINI INFERENCE
 async function callGemini(prompt: string, apiKey: string): Promise<string | null> {
   const token = cleanKey(apiKey);
   if (!token) return null;
@@ -120,6 +92,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    // Handle Telegram /start command
     if (userText === '/start') {
       await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
         method: 'POST',
@@ -134,17 +107,13 @@ export async function POST(req: Request) {
 
     let replyText: string | null = null;
 
-    if (process.env.CEREBRAS_API_KEY) {
-      replyText = await callCerebras(userText, process.env.CEREBRAS_API_KEY);
+    // 1. Groq (Primary)
+    const groqKey = process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY;
+    if (groqKey) {
+      replyText = await callGroq(userText, groqKey);
     }
 
-    if (!replyText) {
-      const groqKey = process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY;
-      if (groqKey) {
-        replyText = await callGroq(userText, groqKey);
-      }
-    }
-
+    // 2. Gemini (Fallback)
     if (!replyText) {
       const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
       if (geminiKey) {
@@ -153,9 +122,10 @@ export async function POST(req: Request) {
     }
 
     if (!replyText) {
-      replyText = "⚠️ Unable to connect to Cerebras/Groq/Gemini. Please check that CEREBRAS_API_KEY in Vercel is set to an active key.";
+      replyText = "⚠️ Unable to connect to Groq or Gemini. Please verify your GROQ_API_KEY in Vercel.";
     }
 
+    // Send back to Telegram
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -166,7 +136,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch {
     return NextResponse.json({ ok: true });
   }
 }

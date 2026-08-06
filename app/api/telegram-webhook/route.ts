@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Connect to your database
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -17,7 +16,6 @@ function getEnvVar(name: string): string {
   return '';
 }
 
-// AI logic using Groq
 async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
   if (!apiKey) return null;
   const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
@@ -55,7 +53,7 @@ export async function POST(req: Request) {
     const url = new URL(req.url);
     const tokenFromQuery = url.searchParams.get('token')?.trim();
 
-    // 1. If there is no token, stay silent
+    // 1. If no token provided in URL, ignore immediately
     if (!tokenFromQuery) return NextResponse.json({ ok: true });
 
     const body = await req.json().catch(() => ({}));
@@ -67,31 +65,27 @@ export async function POST(req: Request) {
     const userText = message.text.trim();
     const targetBotToken = tokenFromQuery;
 
-    // 2. Look up the bot in your database
-    const { data: botConfig } = await supabase
-      .from('user_bots')
-      .select('is_enabled, subscription_status, expires_at')
-      .eq('telegram_bot_token', targetBotToken)
+    // 2. Fetch deployment details from Supabase
+    const { data: deployment } = await supabase
+      .from('deployments')
+      .select('bot_token, is_enabled, subscription_status, expires_at')
+      .eq('bot_token', targetBotToken)
       .maybeSingle();
 
-    // If bot isn't in the database at all, stay silent
-    if (!botConfig) return NextResponse.json({ ok: true });
+    // If bot token is not in database or set to NULL, stay silent
+    if (!deployment || !deployment.bot_token) {
+      return NextResponse.json({ ok: true });
+    }
 
-    // --- 3. YOUR SAAS BILLING & TOGGLE LOGIC ---
-    // Check if the current date is past their expiration date
-    const isExpired = botConfig.expires_at && new Date(botConfig.expires_at) < new Date();
-    
-    // Check if the subscription is not active
-    const isUnpaid = botConfig.subscription_status !== 'active';
-    
-    // Check if they turned it off manually
-    const isTurnedOff = !botConfig.is_enabled;
+    // 3. CHECK SUBSCRIPTION & TOGGLE STATUS
+    const isTurnedOff = deployment.is_enabled === false;
+    const isUnpaid = deployment.subscription_status && deployment.subscription_status !== 'active';
+    const isExpired = deployment.expires_at && new Date(deployment.expires_at) < new Date();
 
-    // If it's turned off, unpaid, or the time ran out -> THE BOT GOES COMPLETELY SILENT
+    // If disabled, unpaid, or expired -> BOT GOES COMPLETELY SILENT
     if (isTurnedOff || isUnpaid || isExpired) {
       return NextResponse.json({ ok: true });
     }
-    // -------------------------------------------
 
     // Handle /start Command
     if (userText === '/start') {
@@ -106,7 +100,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // Process normal messages with AI
+    // Process normal message with Groq AI
     const groqKey = getEnvVar('GROQ_API_KEY');
     let replyText = await callGroq(userText, groqKey);
 
@@ -114,7 +108,7 @@ export async function POST(req: Request) {
       replyText = "I'm currently busy. Please try again in a moment!";
     }
 
-    // Send AI Response Back to Telegram
+    // Send AI Reply
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

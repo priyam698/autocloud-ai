@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server';
 
-// 1. CEREBRAS API CALL
 async function callCerebras(prompt: string, apiKey: string): Promise<string | null> {
-  const models = ['llama3.1-8b', 'llama3.1-70b'];
-  for (const model of models) {
+  const cleanKey = apiKey.trim();
+  
+  // List of active model IDs on Cerebras Cloud
+  const modelCandidates = [
+    'llama-3.3-70b',
+    'llama3.1-8b',
+    'llama3.1-70b',
+    'llama-3.1-8b'
+  ];
+
+  for (const model of modelCandidates) {
     try {
       const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey.trim()}`,
+          'Authorization': `Bearer ${cleanKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -21,69 +29,19 @@ async function callCerebras(prompt: string, apiKey: string): Promise<string | nu
         }),
       });
 
-      if (!res.ok) continue;
+      if (!res.ok) {
+        console.error(`[Cerebras ${model} Error ${res.status}]`);
+        continue;
+      }
+
       const data = await res.json();
       const content = data.choices?.[0]?.message?.content;
       if (content) return content;
     } catch (err) {
-      console.error(`[Cerebras Error]:`, err);
+      console.error(`[Cerebras ${model} Exception]:`, err);
     }
   }
-  return null;
-}
 
-// 2. GROQ API CALL
-async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
-  try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey.trim()}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-      }),
-    });
-
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || null;
-  } catch (err) {
-    console.error(`[Groq Error]:`, err);
-    return null;
-  }
-}
-
-// 3. GEMINI API CALL
-async function callGemini(prompt: string, apiKey: string): Promise<string | null> {
-  const models = ['gemini-1.5-flash', 'gemini-2.0-flash'];
-  for (const model of models) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-          }),
-        }
-      );
-
-      if (!res.ok) continue;
-      const data = await res.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (content) return content;
-    } catch (err) {
-      console.error(`[Gemini Error]:`, err);
-    }
-  }
   return null;
 }
 
@@ -107,7 +65,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No Telegram bot token found' }, { status: 200 });
     }
 
-    // Command Handler
+    // Handle /start
     if (userText === '/start') {
       await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
         method: 'POST',
@@ -120,32 +78,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
     let replyText: string | null = null;
 
-    // Pipeline: Cerebras -> Groq -> Gemini
-    if (process.env.CEREBRAS_API_KEY) {
-      replyText = await callCerebras(userText, process.env.CEREBRAS_API_KEY);
+    if (cerebrasApiKey) {
+      replyText = await callCerebras(userText, cerebrasApiKey);
     }
 
     if (!replyText) {
-      const groqKey = process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY;
-      if (groqKey) {
-        replyText = await callGroq(userText, groqKey);
-      }
+      replyText = "Cerebras API key is missing or model access failed. Please check CEREBRAS_API_KEY in Vercel settings.";
     }
 
-    if (!replyText) {
-      const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
-      if (geminiKey) {
-        replyText = await callGemini(userText, geminiKey);
-      }
-    }
-
-    if (!replyText) {
-      replyText = "I could not generate a response at the moment. Please verify your API keys in Vercel.";
-    }
-
-    // Send Message
+    // Send Response
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

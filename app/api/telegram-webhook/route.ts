@@ -1,22 +1,71 @@
 import { NextResponse } from 'next/server';
 
-async function callCerebras(prompt: string, apiKey: string): Promise<string | null> {
-  const cleanKey = apiKey.trim();
-  
-  // List of active model IDs on Cerebras Cloud
-  const modelCandidates = [
-    'llama-3.3-70b',
-    'llama3.1-8b',
-    'llama3.1-70b',
-    'llama-3.1-8b'
-  ];
+// ---------------- HELPERS ----------------
+function cleanKey(key?: string): string {
+  if (!key) return '';
+  return key.replace(/['"]/g, '').trim();
+}
 
-  for (const model of modelCandidates) {
+// ---------------- 1. DYNAMIC CEREBRAS INFERENCE ----------------
+async function callCerebrasAuto(prompt: string, apiKey: string): Promise<string | null> {
+  const token = cleanKey(apiKey);
+  if (!token) return null;
+
+  try {
+    // Dynamically fetch available models from Cerebras
+    let selectedModel = 'llama3.1-8b'; // default candidate
+    const modelsRes = await fetch('https://api.cerebras.ai/v1/models', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+
+    if (modelsRes.ok) {
+      const modelsData = await modelsRes.json();
+      const availableModels = modelsData.data?.map((m: any) => m.id) || [];
+      if (availableModels.length > 0) {
+        // Pick the first available chat/llama model
+        selectedModel = availableModels.find((m: string) => m.includes('llama') || m.includes('gemma')) || availableModels[0];
+      }
+    }
+
+    // Execute chat completion
+    const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        messages: [
+          { role: 'system', content: 'You are Felix, a helpful AI assistant on Telegram.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+      }),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || null;
+  } catch (err) {
+    console.error('[Cerebras Auto Exception]:', err);
+    return null;
+  }
+}
+
+// ---------------- 2. AUTOMATED GROQ FALLBACK ----------------
+async function callGroqAuto(prompt: string, apiKey: string): Promise<string | null> {
+  const token = cleanKey(apiKey);
+  if (!token) return null;
+
+  const candidateModels = ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768'];
+
+  for (const model of candidateModels) {
     try {
-      const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${cleanKey}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -29,22 +78,49 @@ async function callCerebras(prompt: string, apiKey: string): Promise<string | nu
         }),
       });
 
-      if (!res.ok) {
-        console.error(`[Cerebras ${model} Error ${res.status}]`);
-        continue;
-      }
-
+      if (!res.ok) continue;
       const data = await res.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (content) return content;
-    } catch (err) {
-      console.error(`[Cerebras ${model} Exception]:`, err);
+      const text = data.choices?.[0]?.message?.content;
+      if (text) return text;
+    } catch {
+      continue;
     }
   }
-
   return null;
 }
 
+// ---------------- 3. AUTOMATED GEMINI FALLBACK ----------------
+async function callGeminiAuto(prompt: string, apiKey: string): Promise<string | null> {
+  const token = cleanKey(apiKey);
+  if (!token) return null;
+
+  const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+
+  for (const model of candidateModels) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${token}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+          }),
+        }
+      );
+
+      if (!res.ok) continue;
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) return text;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+// ---------------- WEBHOOK ROUTE HANDLER ----------------
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
@@ -59,13 +135,13 @@ export async function POST(req: Request) {
 
     const chatId = message.chat.id;
     const userText = message.text.trim();
-    const targetBotToken = tokenFromQuery || process.env.TELEGRAM_BOT_TOKEN;
+    const targetBotToken = cleanKey(tokenFromQuery || process.env.TELEGRAM_BOT_TOKEN);
 
     if (!targetBotToken) {
-      return NextResponse.json({ error: 'No Telegram bot token found' }, { status: 200 });
+      return NextResponse.json({ ok: true });
     }
 
-    // Handle /start
+    // Handle /start command
     if (userText === '/start') {
       await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
         method: 'POST',
@@ -78,18 +154,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
     let replyText: string | null = null;
 
-    if (cerebrasApiKey) {
-      replyText = await callCerebras(userText, cerebrasApiKey);
+    // Automated Tiered Execution Pipeline
+    if (process.env.CEREBRAS_API_KEY) {
+      replyText = await callCerebrasAuto(userText, process.env.CEREBRAS_API_KEY);
     }
 
     if (!replyText) {
-      replyText = "Cerebras API key is missing or model access failed. Please check CEREBRAS_API_KEY in Vercel settings.";
+      const groqKey = process.env.GROQ_API_KEY || process.env.USER_GROQ_API_KEY;
+      if (groqKey) {
+        replyText = await callGroqAuto(userText, groqKey);
+      }
     }
 
-    // Send Response
+    if (!replyText) {
+      const geminiKey = process.env.GEMINI_API_KEY1 || process.env.GEMINI_API_KEY;
+      if (geminiKey) {
+        replyText = await callGeminiAuto(userText, geminiKey);
+      }
+    }
+
+    if (!replyText) {
+      replyText = "I am currently undergoing automated maintenance. Please try again in a few moments!";
+    }
+
+    // Send Response Back to Telegram
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

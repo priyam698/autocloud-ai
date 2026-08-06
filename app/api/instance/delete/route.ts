@@ -8,7 +8,9 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { instanceId } = await req.json();
+    const body = await req.json();
+    // Accept instanceId, id, or instance_id from payload
+    const instanceId = body.instanceId || body.id || body.instance_id;
 
     if (!instanceId) {
       return NextResponse.json(
@@ -17,10 +19,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Delete associated records first (if any exist in other tables)
-    await supabase.from('user_bots').delete().eq('instance_id', instanceId);
-
-    // 2. Delete the instance directly from deployments table
+    // Delete directly from deployments table
     const { error: deleteError } = await supabase
       .from('deployments')
       .delete()
@@ -28,10 +27,7 @@ export async function POST(req: Request) {
 
     if (deleteError) {
       console.error('[Delete Error]:', deleteError);
-      return NextResponse.json(
-        { error: deleteError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
 
     return NextResponse.json({

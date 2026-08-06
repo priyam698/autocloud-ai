@@ -53,6 +53,11 @@ export async function POST(req: Request) {
     const url = new URL(req.url);
     const tokenFromQuery = url.searchParams.get('token')?.trim();
 
+    // 1. STRICT CHECK: If no bot token is supplied in the webhook URL query, ignore immediately
+    if (!tokenFromQuery) {
+      return NextResponse.json({ ok: true });
+    }
+
     const body = await req.json().catch(() => ({}));
     const message = body?.message;
 
@@ -60,48 +65,48 @@ export async function POST(req: Request) {
 
     const chatId = message.chat.id;
     const userText = message.text.trim();
-    const targetBotToken = tokenFromQuery || getEnvVar('TELEGRAM_BOT_TOKEN');
+    const targetBotToken = tokenFromQuery;
 
-    if (!targetBotToken) return NextResponse.json({ ok: true });
-
-    // 🔍 Check database for bot state and subscription status
+    // 2. DATABASE CHECK: Look up bot configuration in Supabase
     const { data: botConfig } = await supabase
       .from('user_bots')
       .select('is_enabled, subscription_status, expires_at')
       .eq('telegram_bot_token', targetBotToken)
       .maybeSingle();
 
-    // 1. Turned off by user or admin
-    if (botConfig && !botConfig.is_enabled) {
-      return NextResponse.json({ ok: true }); // Silent ignore
+    // 3. STRICT CHECK: If the bot is not in DB or is disabled/turned off, stay silent
+    if (!botConfig || !botConfig.is_enabled) {
+      return NextResponse.json({ ok: true });
     }
 
-    // 2. Subscription expired or canceled
-    const isExpired = botConfig?.expires_at && new Date(botConfig.expires_at) < new Date();
-    if (botConfig && (botConfig.subscription_status !== 'active' || isExpired)) {
+    // 4. SUBSCRIPTION CHECK: If subscription is expired or inactive
+    const isExpired = botConfig.expires_at && new Date(botConfig.expires_at) < new Date();
+    if (botConfig.subscription_status !== 'active' || isExpired) {
       await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: "⚠️ This bot service has expired. Please renew your subscription on our website to resume service.",
+          text: "⚠️ This bot service has ended or expired. Please renew your subscription on our website to resume service.",
         }),
       });
       return NextResponse.json({ ok: true });
     }
 
+    // Handle /start Command
     if (userText === '/start') {
       await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: "Hello! I am your AI Telegram assistant. How can I help you today?",
+          text: "Hello! I am your active AI Telegram assistant. How can I help you today?",
         }),
       });
       return NextResponse.json({ ok: true });
     }
 
+    // Process Message with Groq AI
     const groqKey = getEnvVar('GROQ_API_KEY');
     let replyText = await callGroq(userText, groqKey);
 
@@ -109,6 +114,7 @@ export async function POST(req: Request) {
       replyText = "I'm currently busy. Please try again in a moment!";
     }
 
+    // Send Response Back to Telegram
     await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

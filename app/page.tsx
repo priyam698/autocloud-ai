@@ -417,7 +417,7 @@ export default function Home() {
           <div className="flex flex-wrap items-center gap-4">
             {/* Telegram 24/7 AI Support Button */}
             <a
-              href="https://t.me/AutoCloudSupportBot"
+              href="https://t.me/+lI-_CNIqhW02ZDk9"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shadow-sm group"

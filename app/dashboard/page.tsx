@@ -229,6 +229,25 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
+                  {/* Live CPU & GPU Telemetry Monitoring */}
+<div className="bg-slate-950 border border-slate-800 rounded-lg p-3 mb-4 grid grid-cols-2 gap-2 text-[11px] font-mono">
+  <div className="flex items-center justify-between">
+    <span className="text-slate-400">💻 CPU Load:</span>
+    <span className="text-purple-400 font-bold">{metrics.cpu}</span>
+  </div>
+  <div className="flex items-center justify-between">
+    <span className="text-slate-400">⚡ RAM:</span>
+    <span className="text-blue-400 font-bold">{metrics.ram}</span>
+  </div>
+  <div className="flex items-center justify-between">
+    <span className="text-slate-400">🎮 GPU VRAM:</span>
+    <span className="text-emerald-400 font-bold">{metrics.gpu}</span>
+  </div>
+  <div className="flex items-center justify-between">
+    <span className="text-slate-400">🔥 GPU Temp:</span>
+    <span className="text-amber-400 font-bold">{metrics.temp}</span>
+  </div>
+</div>
 
                   {!isUnlocked ? (
                     <button

@@ -1,125 +1,92 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-function getEnvVar(name: string): string {
-  const target = name.toUpperCase();
-  for (const [key, value] of Object.entries(process.env)) {
-    if (key.toUpperCase() === target && value) {
-      return value.replace(/['"]/g, '').trim();
-    }
-  }
-  return '';
-}
-
-async function callGroq(prompt: string, apiKey: string): Promise<string | null> {
-  if (!apiKey) return null;
-  const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
-
-  for (const model of models) {
-    try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: 'You are Felix, an AI assistant on Telegram.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7,
-        }),
-      });
-
-      if (!res.ok) continue;
-      const data = await res.json();
-      return data.choices?.[0]?.message?.content || null;
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
+const DEFAULT_SYSTEM_PROMPT = `
+You are a helpful 24/7 AI Customer Support Assistant.
+Answer customer inquiries politely, concisely, and accurately based on the business context provided.
+If you do not know an answer, politely ask the user to contact human support.
+`;
 
 export async function POST(req: Request) {
   try {
-    const url = new URL(req.url);
-    const tokenFromQuery = url.searchParams.get('token')?.trim();
-
-    // 1. If no token provided in URL, ignore immediately
-    if (!tokenFromQuery) return NextResponse.json({ ok: true });
-
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json();
     const message = body?.message;
 
-    if (!message || !message.text) return NextResponse.json({ ok: true });
+    // Ignore non-message updates
+    if (!message || !message.text) {
+      return NextResponse.json({ ok: true });
+    }
 
     const chatId = message.chat.id;
-    const userText = message.text.trim();
-    const targetBotToken = tokenFromQuery;
+    const chatType = message.chat.type; // 'private', 'group', or 'supergroup'
+    const userText = message.text;
 
-    // 2. Fetch deployment details from Supabase
-    const { data: deployment } = await supabase
-      .from('deployments')
-      .select('bot_token, is_enabled, subscription_status, expires_at')
-      .eq('bot_token', targetBotToken)
-      .maybeSingle();
+    // 1. Handle Direct Messages (DMs from ANY customer)
+    if (chatType === 'private') {
+      if (userText.startsWith('/start')) {
+        await sendTelegramMessage(
+          chatId,
+          'Hello! 👋 How can I assist you today? Feel free to ask any questions!'
+        );
+        return NextResponse.json({ ok: true });
+      }
 
-    // If bot token is not in database or set to NULL, stay silent
-    if (!deployment || !deployment.bot_token) {
+      // Generate Gemini response for public DM
+      const replyText = await generateAIResponse(userText);
+      await sendTelegramMessage(chatId, replyText);
       return NextResponse.json({ ok: true });
     }
 
-    // 3. CHECK SUBSCRIPTION & TOGGLE STATUS
-    const isTurnedOff = deployment.is_enabled === false;
-    const isUnpaid = deployment.subscription_status && deployment.subscription_status !== 'active';
-    const isExpired = deployment.expires_at && new Date(deployment.expires_at) < new Date();
+    // 2. Handle Group Messages (Responds when tagged @bot or replied to)
+    if (chatType === 'group' || chatType === 'supergroup') {
+      const botToken = process.env.TELEGRAM_SUPPORT_BOT_TOKEN;
+      const botInfoRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+      const botInfo = await botInfoRes.json();
+      const botUsername = botInfo?.result?.username ? `@${botInfo.result.username}` : '';
 
-    // If disabled, unpaid, or expired -> BOT GOES COMPLETELY SILENT
-    if (isTurnedOff || isUnpaid || isExpired) {
-      return NextResponse.json({ ok: true });
+      const isRepliedToBot = message.reply_to_message?.from?.id === botInfo?.result?.id;
+
+      if ((botUsername && userText.includes(botUsername)) || isRepliedToBot) {
+        const cleanText = botUsername ? userText.replace(botUsername, '').trim() : userText;
+        const replyText = await generateAIResponse(cleanText);
+        await sendTelegramMessage(chatId, replyText);
+      }
     }
-
-    // Handle /start Command
-    if (userText === '/start') {
-      await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: "Hello! I am your active AI Telegram assistant. How can I help you today?",
-        }),
-      });
-      return NextResponse.json({ ok: true });
-    }
-
-    // Process normal message with Groq AI
-    const groqKey = getEnvVar('GROQ_API_KEY');
-    let replyText = await callGroq(userText, groqKey);
-
-    if (!replyText) {
-      replyText = "I'm currently busy. Please try again in a moment!";
-    }
-
-    // Send AI Reply
-    await fetch(`https://api.telegram.org/bot${targetBotToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: replyText,
-      }),
-    });
 
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    console.error('[Telegram Webhook Error]:', err);
+    return NextResponse.json({ ok: true }); // Return ok: true so Telegram doesn't retry endlessly
   }
+}
+
+// Helper: Generate AI Response using Gemini
+async function generateAIResponse(userMessage: string, customContext: string = '') {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const fullPrompt = `${DEFAULT_SYSTEM_PROMPT}\n\nBusiness Info:\n${customContext}\n\nCustomer Question: ${userMessage}`;
+
+    const result = await model.generateContent(fullPrompt);
+    return result.response.text() || "I'm sorry, I couldn't process that question right now.";
+  } catch (error) {
+    console.error('[Gemini AI Error]:', error);
+    return "I'm having trouble connecting right now. Please try again shortly!";
+  }
+}
+
+// Helper: Send message back to Telegram API
+async function sendTelegramMessage(chatId: number | string, text: string) {
+  const token = process.env.TELEGRAM_SUPPORT_BOT_TOKEN;
+  if (!token) return;
+
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: text,
+    }),
+  });
 }

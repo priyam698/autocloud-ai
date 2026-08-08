@@ -7,15 +7,22 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Map template IDs to human-readable names required by your database constraint
+const TEMPLATE_NAMES: Record<string, string> = {
+  'n8n-workflow': 'n8n Workflow Automation',
+  'telegram-ai-bot': 'Telegram AI Bot Runner',
+  'langchain-runner': 'LangChain & CrewAI Runner',
+};
+
 export async function POST(req: Request) {
   try {
-    // Safely parse JSON body or default to empty object
     const body = await req.json().catch(() => ({}));
     const { sessionId, orderId, userId, templateId } = body;
 
     const uniqueId = sessionId || orderId || `instance_${Date.now()}`;
+    const instanceName = TEMPLATE_NAMES[templateId] || 'Telegram AI Bot Runner';
 
-    // 1. DEDUPLICATION CHECK: Prevent creating multiple instances for the same request
+    // 1. DEDUPLICATION CHECK
     const { data: existingInstance } = await supabase
       .from('deployments')
       .select('*')
@@ -31,14 +38,16 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Generate secure random password
+    // 2. Generate random security password
     const accessPassword = crypto.randomBytes(6).toString('hex');
 
-    // 3. SINGLE INSERTION: Insert exactly 1 row into deployments
+    // 3. SINGLE INSERTION with required 'name' field
     const { data, error } = await supabase
       .from('deployments')
       .insert([
         {
+          name: instanceName,
+          template: templateId || 'telegram-ai-bot',
           order_id: uniqueId,
           access_password: accessPassword,
           is_enabled: true,
@@ -51,35 +60,12 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error('[Checkout DB Insert Error]:', error);
-      // Fallback: If order_id column constraint fails, try inserting minimal fields
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('deployments')
-        .insert([
-          {
-            access_password: accessPassword,
-            is_enabled: true,
-            subscription_status: 'active',
-          },
-        ])
-        .select()
-        .single();
-
-      if (fallbackError) {
-        return NextResponse.json(
-          { success: false, error: fallbackError.message },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        redirectUrl: '/dashboard',
-        url: '/dashboard',
-        data: fallbackData,
-      });
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
     }
 
-    // Return success response supporting both 'url' and 'redirectUrl' frontend keys
     return NextResponse.json({
       success: true,
       redirectUrl: '/dashboard',

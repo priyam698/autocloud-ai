@@ -18,25 +18,20 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { templateId } = body;
 
-    const selectedTemplate = templateId || 'telegram-ai-bot';
-    const instanceName = TEMPLATE_NAMES[selectedTemplate] || 'Telegram AI Bot Runner';
-
-    // 1. Generate secure access password
+    const instanceName = TEMPLATE_NAMES[templateId] || 'Telegram AI Bot Runner';
     const accessPassword = crypto.randomBytes(6).toString('hex');
 
-    // 2. SINGLE INSERTION using only schema-verified existing columns
+    // Safe payload: ONLY uses essential standard columns (name, access_password, is_enabled)
+    const payload: Record<string, any> = {
+      name: instanceName,
+      access_password: accessPassword,
+      is_enabled: true,
+    };
+
+    // Insert directly into deployments
     const { data, error } = await supabase
       .from('deployments')
-      .insert([
-        {
-          name: instanceName,
-          template: selectedTemplate,
-          access_password: accessPassword,
-          is_enabled: true,
-          subscription_status: 'active',
-          created_at: new Date().toISOString(),
-        },
-      ])
+      .insert([payload])
       .select()
       .single();
 

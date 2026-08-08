@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -12,7 +11,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const message = body?.message;
 
-    // Ignore non-text updates or empty payloads
     if (!message || !message.text) {
       return NextResponse.json({ ok: true });
     }
@@ -20,17 +18,13 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userText = message.text;
 
-    // 1. Fetch active deployment details & business knowledge base from Supabase
-    const { data: deployment, error: dbError } = await supabase
+    // 1. Get deployment & custom context from Supabase
+    const { data: deployment } = await supabase
       .from('deployments')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
-
-    if (dbError || !deployment) {
-      console.error('Database query error or no deployment found:', dbError);
-    }
 
     const botToken = deployment?.bot_token || process.env.TELEGRAM_BOT_TOKEN;
     const customContext =
@@ -38,47 +32,46 @@ export async function POST(req: Request) {
       'You are a helpful customer support AI assistant for AutoCloud AI.';
 
     if (!botToken) {
-      console.error('No bot token found in DB or environment variables.');
       return NextResponse.json(
         { error: 'Telegram Bot Token missing' },
         { status: 400 }
       );
     }
 
-    // 2. Query Gemini 1.5 Flash API with Business Context
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-      console.error('GEMINI_API_KEY environment variable is not set.');
-    }
+    // 2. Call Groq LLaMA API
+    const groqApiKey = process.env.GROQ_API_KEY;
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+    const groqRes = await fetch(
+      'https://api.groq.com/openai/v1/chat/completions',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${groqApiKey}`,
         },
         body: JSON.stringify({
-          contents: [
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an AI assistant. Answer customer questions using ONLY this business knowledge base:\n\n${customContext}`,
+            },
             {
               role: 'user',
-              parts: [
-                {
-                  text: `Business Context / Knowledge Base:\n${customContext}\n\nUser Question: ${userText}`,
-                },
-              ],
+              content: userText,
             },
           ],
+          temperature: 0.5,
         }),
       }
     );
 
-    const geminiData = await geminiRes.json();
+    const groqData = await groqRes.json();
     const replyText =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "I'm sorry, I couldn't process your request right now. Please try again in a moment.";
+      groqData?.choices?.[0]?.message?.content ||
+      "I'm sorry, I couldn't process your request right now.";
 
-    // 3. Send message back to user via Telegram Bot API
+    // 3. Send Telegram Response
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: {
@@ -92,7 +85,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Telegram Webhook Handler Error:', err);
+    console.error('Groq Webhook Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

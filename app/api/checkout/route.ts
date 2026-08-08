@@ -18,17 +18,18 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { templateId } = body;
 
-    const instanceName = TEMPLATE_NAMES[templateId] || 'Telegram AI Bot Runner';
+    const selectedTemplate = templateId || 'telegram-ai-bot';
+    const instanceName = TEMPLATE_NAMES[selectedTemplate] || 'Telegram AI Bot Runner';
     const accessPassword = crypto.randomBytes(6).toString('hex');
 
-    // Safe payload: ONLY uses essential standard columns (name, access_password, is_enabled)
-    const payload: Record<string, any> = {
+    // Matching exact database schema: name, template_id, access_password, is_enabled
+    const payload = {
       name: instanceName,
+      template_id: selectedTemplate,
       access_password: accessPassword,
       is_enabled: true,
     };
 
-    // Insert directly into deployments
     const { data, error } = await supabase
       .from('deployments')
       .insert([payload])

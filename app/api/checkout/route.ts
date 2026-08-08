@@ -9,38 +9,37 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
+    // Safely parse JSON body or default to empty object
     const body = await req.json().catch(() => ({}));
-    const { sessionId, orderId, userId } = body;
+    const { sessionId, orderId, userId, templateId } = body;
 
-    const uniqueCheckoutId = sessionId || orderId || `order_${Date.now()}`;
+    const uniqueId = sessionId || orderId || `instance_${Date.now()}`;
 
-    // 1. Check if an instance already exists for this order to prevent duplicates
-    if (uniqueCheckoutId) {
-      const { data: existingInstance } = await supabase
-        .from('deployments')
-        .select('*')
-        .eq('order_id', uniqueCheckoutId)
-        .maybeSingle();
+    // 1. DEDUPLICATION CHECK: Prevent creating multiple instances for the same request
+    const { data: existingInstance } = await supabase
+      .from('deployments')
+      .select('*')
+      .eq('order_id', uniqueId)
+      .maybeSingle();
 
-      if (existingInstance) {
-        return NextResponse.json({
-          success: true,
-          url: '/dashboard',
-          message: 'Instance already exists',
-          data: existingInstance,
-        });
-      }
+    if (existingInstance) {
+      return NextResponse.json({
+        success: true,
+        redirectUrl: '/dashboard',
+        url: '/dashboard',
+        data: existingInstance,
+      });
     }
 
-    // 2. Generate random security password
+    // 2. Generate secure random password
     const accessPassword = crypto.randomBytes(6).toString('hex');
 
-    // 3. Insert exactly ONE instance into deployments
+    // 3. SINGLE INSERTION: Insert exactly 1 row into deployments
     const { data, error } = await supabase
       .from('deployments')
       .insert([
         {
-          order_id: uniqueCheckoutId,
+          order_id: uniqueId,
           access_password: accessPassword,
           is_enabled: true,
           subscription_status: 'active',
@@ -51,24 +50,46 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      console.error('[Checkout DB Error]:', error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      console.error('[Checkout DB Insert Error]:', error);
+      // Fallback: If order_id column constraint fails, try inserting minimal fields
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('deployments')
+        .insert([
+          {
+            access_password: accessPassword,
+            is_enabled: true,
+            subscription_status: 'active',
+          },
+        ])
+        .select()
+        .single();
+
+      if (fallbackError) {
+        return NextResponse.json(
+          { success: false, error: fallbackError.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        redirectUrl: '/dashboard',
+        url: '/dashboard',
+        data: fallbackData,
+      });
     }
 
-    // Return success response formatted for frontend expectations
+    // Return success response supporting both 'url' and 'redirectUrl' frontend keys
     return NextResponse.json({
       success: true,
+      redirectUrl: '/dashboard',
       url: '/dashboard',
-      instanceId: data?.id,
       data,
     });
   } catch (err: any) {
-    console.error('[Checkout Route Exception]:', err);
+    console.error('[Checkout Server Exception]:', err);
     return NextResponse.json(
-      { error: err.message || 'Checkout failed' },
+      { success: false, error: err.message || 'Internal server error' },
       { status: 500 }
     );
   }

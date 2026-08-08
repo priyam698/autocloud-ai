@@ -2,79 +2,61 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export async function POST(req: Request) {
   try {
     const rawBody = await req.text();
-    const event = JSON.parse(rawBody);
+    const payload = JSON.parse(rawBody);
 
-    const eventName = event.meta?.event_name || 'unknown_event';
-    const customData = event.meta?.custom_data || {};
-    const attributes = event.data?.attributes || {};
+    const eventName = payload.meta?.event_name;
 
-    console.log(`[LemonSqueezy Webhook] Event Received: ${eventName}`);
+    // Only process order creation events
+    if (eventName === 'order_created') {
+      const orderId = payload.data?.id?.toString();
+      const customData = payload.meta?.custom_data || {};
+      const templateId = customData.template_id || 'telegram-ai-bot';
 
-    // Create Supabase admin client
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseServiceKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      // 1. IDEMPOTENCY CHECK: If an instance for this order_id already exists, stop here!
+      if (orderId) {
+        const { data: existing } = await supabase
+          .from('deployments')
+          .select('id')
+          .eq('order_id', orderId)
+          .maybeSingle();
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        if (existing) {
+          console.log(`[Webhook] Order ${orderId} already exists in database. Skipping duplicate.`);
+          return NextResponse.json({ message: 'Order already processed' }, { status: 200 });
+        }
+      }
 
-    // Extract data with robust fallbacks
-    const userEmail =
-      attributes.user_email ||
-      attributes.customer_email ||
-      customData.user_email ||
-      'customer@autocloud.ai';
+      // 2. Insert ONLY ONE instance
+      const accessPassword = crypto.randomBytes(6).toString('hex');
+      const { error } = await supabase.from('deployments').insert([
+        {
+          name: 'Telegram AI Bot Runner',
+          template_id: templateId,
+          order_id: orderId || null,
+          access_password: accessPassword,
+          is_enabled: true,
+        },
+      ]);
 
-    const productName =
-      customData.template_name ||
-      attributes.product_name ||
-      attributes.first_order_item?.product_name ||
-      'Telegram AI Bot Runner';
+      if (error) {
+        console.error('[Webhook DB Error]:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
 
-    const templateId =
-      customData.template_id ||
-      (productName.toLowerCase().includes('n8n') ? 'n8n-workflow' : 'telegram-ai-bot');
-
-    const instanceId = crypto.randomUUID();
-    const accessPassword = crypto.randomBytes(6).toString('hex');
-
-    // Force insert into Supabase deployments table
-    const { data, error: dbError } = await supabase
-      .from('deployments')
-      .insert({
-        id: instanceId,
-        name: productName,
-        user_email: userEmail,
-        status: 'running',
-        template_id: templateId,
-        access_password: accessPassword,
-        container_id: `bot_${crypto.randomBytes(4).toString('hex')}`,
-      })
-      .select();
-
-    if (dbError) {
-      console.error('[Supabase Auto-Insert Error]:', dbError);
-      return NextResponse.json(
-        { error: 'Database Insert Failed', details: dbError.message },
-        { status: 500 }
-      );
+      console.log(`[Webhook] Created single instance for order ${orderId}`);
     }
 
-    console.log(`[Success] Deployment created: ${instanceId}`);
-    return NextResponse.json({
-      success: true,
-      eventName,
-      instanceId,
-      insertedRow: data,
-    });
+    return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('[Webhook Exception]:', err);
-    return NextResponse.json(
-      { error: err.message || 'Internal Server Error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

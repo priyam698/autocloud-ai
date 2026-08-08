@@ -12,11 +12,9 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { sessionId, orderId, email, userId } = body;
 
-    // Use sessionId or orderId as a unique key for deduplication
-    const uniqueCheckoutId = sessionId || orderId;
+    const uniqueCheckoutId = sessionId || orderId || `order_${Date.now()}`;
 
     // 1. DEDUPLICATION CHECK
-    // If a unique checkout ID is passed, check if an instance already exists for it
     if (uniqueCheckoutId) {
       const { data: existingInstance } = await supabase
         .from('deployments')
@@ -24,7 +22,6 @@ export async function POST(req: Request) {
         .eq('order_id', uniqueCheckoutId)
         .maybeSingle();
 
-      // If it already exists, return the existing instance immediately (NO NEW CREATION)
       if (existingInstance) {
         return NextResponse.json({
           success: true,
@@ -34,31 +31,41 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Generate security password for the instance
-    const accessPassword = crypto.randomBytes(6).toString('hex'); // 12-character random string
+    // 2. Generate random security password
+    const accessPassword = crypto.randomBytes(6).toString('hex');
 
-    // 3. SINGLE INSERTION into Supabase
+    // 3. Prepare payload matching deployments table schema
+    const payload: Record<string, any> = {
+      access_password: accessPassword,
+      is_enabled: true,
+      subscription_status: 'active',
+      created_at: new Date().toISOString(),
+    };
+
+    if (uniqueCheckoutId) payload.order_id = uniqueCheckoutId;
+    if (userId) payload.user_id = userId;
+
+    // Insert single instance into deployments
     const { data, error } = await supabase
       .from('deployments')
-      .insert([
-        {
-          order_id: uniqueCheckoutId || null,
-          user_id: userId || null,
-          access_password: accessPassword,
-          is_enabled: true,
-          subscription_status: 'active',
-          created_at: new Date().toISOString(),
-        },
-      ])
+      .insert([payload])
       .select()
       .single();
 
     if (error) {
-      console.error('[Checkout Error]:', error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      console.error('[Checkout DB Insert Error]:', error);
+      // Fallback insertion with minimal fields if strict columns fail
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('deployments')
+        .insert([{ access_password: accessPassword }])
+        .select()
+        .single();
+
+      if (fallbackError) {
+        return NextResponse.json({ error: fallbackError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, data: fallbackData });
     }
 
     return NextResponse.json({

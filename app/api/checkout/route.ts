@@ -1,94 +1,76 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { templateId } = body;
+    const body = await req.json().catch(() => ({}));
+    const { sessionId, orderId, email, userId } = body;
 
-    // Friendly names mapped to template IDs
-    const templateNames: Record<string, string> = {
-      'n8n-workflow': 'n8n Workflow Automation',
-      'telegram-ai-bot': 'Telegram AI Bot Runner',
-      'langchain-agent': 'LangChain / CrewAI Runner',
-    };
+    // Use sessionId or orderId as a unique key for deduplication
+    const uniqueCheckoutId = sessionId || orderId;
 
-    const selectedName = templateNames[templateId] || 'AI Agent Hosting';
+    // 1. DEDUPLICATION CHECK
+    // If a unique checkout ID is passed, check if an instance already exists for it
+    if (uniqueCheckoutId) {
+      const { data: existingInstance } = await supabase
+        .from('deployments')
+        .select('*')
+        .eq('order_id', uniqueCheckoutId)
+        .maybeSingle();
 
-    // Support both naming styles (LEMONSQUEEZY_ and LEMON_SQUEEZY_)
-    const apiKey = process.env.LEMONSQUEEZY_API_KEY || process.env.LEMON_SQUEEZY_API_KEY;
-    const storeId = process.env.LEMONSQUEEZY_STORE_ID || process.env.LEMON_SQUEEZY_STORE_ID;
-    const variantId = process.env.LEMONSQUEEZY_VARIANT_ID || process.env.LEMON_SQUEEZY_VARIANT_ID;
-
-    if (!apiKey || !storeId || !variantId) {
-      return NextResponse.json(
-        { error: 'Lemon Squeezy credentials missing in environment variables.' },
-        { status: 500 }
-      );
+      // If it already exists, return the existing instance immediately (NO NEW CREATION)
+      if (existingInstance) {
+        return NextResponse.json({
+          success: true,
+          message: 'Instance already exists for this order',
+          data: existingInstance,
+        });
+      }
     }
 
-    const response = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/vnd.api+json',
-        'Content-Type': 'application/vnd.api+json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        data: {
-          type: 'checkouts',
-          attributes: {
-            checkout_data: {
-              custom: {
-                template_id: templateId,
-                template_name: selectedName,
-              },
-            },
-            product_options: {
-              name: `AutoCloud AI: ${selectedName}`,
-              description: '1-Click deployment and 24/7 background hosting for AI Agents and workflows.',
-              redirect_url: `${req.headers.get('origin') || 'https://autocloud-ai-p448.vercel.app'}/?success=true`,
-            },
-          },
-          relationships: {
-            store: {
-              data: {
-                type: 'stores',
-                id: String(storeId),
-              },
-            },
-            variant: {
-              data: {
-                type: 'variants',
-                id: String(variantId),
-              },
-            },
-          },
+    // 2. Generate security password for the instance
+    const accessPassword = crypto.randomBytes(6).toString('hex'); // 12-character random string
+
+    // 3. SINGLE INSERTION into Supabase
+    const { data, error } = await supabase
+      .from('deployments')
+      .insert([
+        {
+          order_id: uniqueCheckoutId || null,
+          user_id: userId || null,
+          access_password: accessPassword,
+          is_enabled: true,
+          subscription_status: 'active',
+          created_at: new Date().toISOString(),
         },
-      }),
-    });
+      ])
+      .select()
+      .single();
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('Lemon Squeezy error details:', data);
+    if (error) {
+      console.error('[Checkout Error]:', error);
       return NextResponse.json(
-        { error: data.errors?.[0]?.detail || 'Failed to create checkout session.' },
-        { status: response.status }
-      );
-    }
-
-    const checkoutUrl = data.data?.attributes?.url;
-
-    if (!checkoutUrl) {
-      return NextResponse.json(
-        { error: 'Checkout URL not returned from payment gateway.' },
+        { error: error.message },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ url: checkoutUrl });
+    return NextResponse.json({
+      success: true,
+      message: 'Single instance created successfully!',
+      data,
+    });
   } catch (err: any) {
-    console.error('Checkout API Route Error:', err);
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+    console.error('[Checkout Exception]:', err);
+    return NextResponse.json(
+      { error: err.message || 'Checkout failed' },
+      { status: 500 }
+    );
   }
 }

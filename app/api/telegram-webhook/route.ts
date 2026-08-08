@@ -11,14 +11,14 @@ export async function POST(req: Request) {
     const body = await req.json();
     const message = body?.message;
 
-    if (!message || !message.text) {
+    if (!message) {
       return NextResponse.json({ ok: true });
     }
 
     const chatId = message.chat.id;
-    const userText = message.text;
+    const isGroup = message.chat.type === 'group' || message.chat.type === 'supergroup';
 
-    // 1. Get deployment & custom context from Supabase
+    // 1. Fetch deployment & context from Supabase
     const { data: deployment } = await supabase
       .from('deployments')
       .select('*')
@@ -29,63 +29,80 @@ export async function POST(req: Request) {
     const botToken = deployment?.bot_token || process.env.TELEGRAM_BOT_TOKEN;
     const customContext =
       deployment?.custom_context ||
-      'You are a helpful customer support AI assistant for AutoCloud AI.';
+      'You are a helpful community manager and support bot for our Telegram group.';
 
     if (!botToken) {
-      return NextResponse.json(
-        { error: 'Telegram Bot Token missing' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'No bot token found' }, { status: 400 });
     }
 
-    // 2. Call Groq LLaMA API
+    // ----------------------------------------------------
+    // FEATURE A: AUTO-WELCOME NEW GROUP MEMBERS
+    // ----------------------------------------------------
+    if (message.new_chat_members && message.new_chat_members.length > 0) {
+      for (const newMember of message.new_chat_members) {
+        const welcomeName = newMember.first_name || 'Member';
+        const welcomeText = `🎉 Welcome **${welcomeName}** to the group!\n\n${customContext}\n\nFeel free to ask any questions here!`;
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: welcomeText,
+            parse_mode: 'Markdown',
+          }),
+        });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // ----------------------------------------------------
+    // FEATURE B: ANSWER GROUP & DIRECT MESSAGES WITH LLM
+    // ----------------------------------------------------
+    const userText = message.text;
+    if (!userText) return NextResponse.json({ ok: true });
+
+    // In groups, you can choose to reply only if mentioned or to all questions
     const groqApiKey = process.env.GROQ_API_KEY;
 
-    const groqRes = await fetch(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${groqApiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            {
-              role: 'system',
-              content: `You are an AI assistant. Answer customer questions using ONLY this business knowledge base:\n\n${customContext}`,
-            },
-            {
-              role: 'user',
-              content: userText,
-            },
-          ],
-          temperature: 0.5,
-        }),
-      }
-    );
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${groqApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a Telegram Community Admin Bot. Assist users in group/DM using this info:\n${customContext}`,
+          },
+          { role: 'user', content: userText },
+        ],
+        temperature: 0.5,
+      }),
+    });
 
     const groqData = await groqRes.json();
     const replyText =
       groqData?.choices?.[0]?.message?.content ||
-      "I'm sorry, I couldn't process your request right now.";
+      "I'm here to help! Ask any questions regarding our service.";
 
-    // 3. Send Telegram Response
+    // Reply back in chat (replying directly to the user's message)
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
         text: replyText,
+        reply_to_message_id: message.message_id, // Replies directly to user's chat message
       }),
     });
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Groq Webhook Error:', err);
+    console.error('Webhook Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

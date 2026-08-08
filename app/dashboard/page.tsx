@@ -159,6 +159,12 @@ export default function Dashboard() {
       {/* Header */}
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
+          <a
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors mb-2 font-medium"
+          >
+          ← Back to Home
+          </a>
           <h1 className="text-3xl font-bold">Agent Dashboard</h1>
           <p className="text-sm text-slate-400 mt-1">
             Locked instances require your emailed Instance ID & Password to manage

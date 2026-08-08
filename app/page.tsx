@@ -94,21 +94,22 @@ export default function Home() {
   };
 
   const handleDeploy = async (templateId: string) => {
-    setLoadingId(templateId);
     try {
+      setLoadingId(templateId);
+
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId }),
       });
-      
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
 
       const data = await res.json();
-      if (data?.url) {
-        window.location.href = data.url;
+
+      // Check if redirect URL exists, or if deployment succeeded
+      const targetUrl = data?.url || data?.redirectUrl || '/dashboard';
+
+      if (res.ok && (data?.success || data?.url || data?.redirectUrl)) {
+        window.location.href = targetUrl;
       } else {
         alert(data?.error || 'Unable to initiate checkout session.');
       }

@@ -34,6 +34,27 @@ export default function Dashboard() {
   const [userTelegramToken, setUserTelegramToken] = useState<string>('');
   const [businessInfo, setBusinessInfo] = useState<string>('');
   const [isSavingKey, setIsSavingKey] = useState<boolean>(false);
+  // Live Telemetry Metrics State
+  const [metrics, setMetrics] = useState({ cpu: '12%', ram: '42%', gpu: '8%', temp: '44°C' });
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/instance/metrics');
+        const data = await res.json();
+        if (data) {
+          setMetrics({
+            cpu: `${data.cpu_usage}%`,
+            ram: `${data.memory_usage}%`,
+            gpu: `${data.gpu_usage}%`,
+            temp: `${data.gpu_temp}°C`,
+          });
+        }
+      } catch (e) {}
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch Existing Instances
   const fetchInstances = async () => {

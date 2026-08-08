@@ -7,7 +7,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Map template IDs to human-readable names required by your database constraint
 const TEMPLATE_NAMES: Record<string, string> = {
   'n8n-workflow': 'n8n Workflow Automation',
   'telegram-ai-bot': 'Telegram AI Bot Runner',
@@ -17,38 +16,21 @@ const TEMPLATE_NAMES: Record<string, string> = {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { sessionId, orderId, userId, templateId } = body;
+    const { templateId } = body;
 
-    const uniqueId = sessionId || orderId || `instance_${Date.now()}`;
-    const instanceName = TEMPLATE_NAMES[templateId] || 'Telegram AI Bot Runner';
+    const selectedTemplate = templateId || 'telegram-ai-bot';
+    const instanceName = TEMPLATE_NAMES[selectedTemplate] || 'Telegram AI Bot Runner';
 
-    // 1. DEDUPLICATION CHECK
-    const { data: existingInstance } = await supabase
-      .from('deployments')
-      .select('*')
-      .eq('order_id', uniqueId)
-      .maybeSingle();
-
-    if (existingInstance) {
-      return NextResponse.json({
-        success: true,
-        redirectUrl: '/dashboard',
-        url: '/dashboard',
-        data: existingInstance,
-      });
-    }
-
-    // 2. Generate random security password
+    // 1. Generate secure access password
     const accessPassword = crypto.randomBytes(6).toString('hex');
 
-    // 3. SINGLE INSERTION with required 'name' field
+    // 2. SINGLE INSERTION using only schema-verified existing columns
     const { data, error } = await supabase
       .from('deployments')
       .insert([
         {
           name: instanceName,
-          template: templateId || 'telegram-ai-bot',
-          order_id: uniqueId,
+          template: selectedTemplate,
           access_password: accessPassword,
           is_enabled: true,
           subscription_status: 'active',

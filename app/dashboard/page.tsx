@@ -14,6 +14,9 @@ interface DeploymentInstance {
   bot_token?: string;
   access_password?: string;
   custom_context?: string;
+  website_url?: string;
+  api_key?: string;
+  bot_type?: 'general' | 'ecommerce';
 }
 
 export default function Dashboard() {
@@ -29,10 +32,13 @@ export default function Dashboard() {
   const [inputPassword, setInputPassword] = useState<string>('');
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Configure Telegram Token & Business Info Modal State
+  // Configure Modal State
   const [keyModalInstance, setKeyModalInstance] = useState<DeploymentInstance | null>(null);
+  const [botType, setBotType] = useState<'general' | 'ecommerce'>('general');
   const [userTelegramToken, setUserTelegramToken] = useState<string>('');
   const [businessInfo, setBusinessInfo] = useState<string>('');
+  const [websiteUrl, setWebsiteUrl] = useState<string>('');
+  const [storeApiKey, setStoreApiKey] = useState<string>('');
   const [isSavingKey, setIsSavingKey] = useState<boolean>(false);
 
   // Live Telemetry Metrics State
@@ -57,7 +63,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch Existing Instances
   const fetchInstances = async () => {
     try {
       setLoading(true);
@@ -84,7 +89,6 @@ export default function Dashboard() {
     fetchInstances();
   }, []);
 
-  // Handle Search Filtering
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredInstances(instances);
@@ -101,7 +105,6 @@ export default function Dashboard() {
     }
   }, [searchQuery, instances]);
 
-  // Handle Security Unlock
   const handleUnlockInstance = () => {
     if (!authModalInstance) return;
     setAuthError(null);
@@ -119,7 +122,6 @@ export default function Dashboard() {
     setInputPassword('');
   };
 
-  // Handle Save Telegram Token & Business Info Knowledge Base
   const handleSaveApiKey = async () => {
     if (!keyModalInstance) return;
     setIsSavingKey(true);
@@ -127,23 +129,22 @@ export default function Dashboard() {
     try {
       const res = await fetch('/api/bot/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           instanceId: keyModalInstance.id,
           botToken: userTelegramToken,
           custom_context: businessInfo,
+          bot_type: botType,
+          website_url: websiteUrl,
+          api_key: storeApiKey,
         }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        alert('🎉 Telegram Bot Token linked & 24/7 Webhook registered successfully!');
+        alert('🎉 Telegram Bot & Website API linked successfully!');
         setKeyModalInstance(null);
-        setUserTelegramToken('');
-        setBusinessInfo('');
         fetchInstances();
       } else {
         alert('❌ Failed to register bot: ' + (data.error || 'Unknown error'));
@@ -177,43 +178,31 @@ export default function Dashboard() {
     }
   };
 
-  const handleLoadCryptoTemplate = () => {
-    const cryptoTemplate = `--- CRYPTO / WEB3 PROJECT KNOWLEDGE BASE ---
+  const handleLoadEcommerceTemplate = () => {
+    const template = `==================================================
+AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
+==================================================
 
-PROJECT OVERVIEW:
-Project Name: [PROJECT NAME] ($[TICKER])
-Blockchain: [Ethereum / Solana / BNB / Arbitrum]
-Official Website: https://yourproject.com
-Whitepaper/Docs: https://docs.yourproject.com
+1. SECURITY & PRIVATE MESSAGE (DM) RULES:
+- PUBLIC GROUP RULE: Never ask for or process Order IDs, Account Numbers, Emails, or personal data in a public group.
+- PRIVACY REDIRECT: If a customer requests order info or account help in a public group, reply:
+  "🔒 For security and privacy, please send me a Direct Message (DM) with your Order ID or Account Number!"
+- PRIVATE CHAT (DM) RULE: In direct messages, ask for their Order ID/Account Number, query the store database via our connected website API, and provide order status.
 
-TOKENOMICS & CONTRACT ADDRESS:
-- Token Symbol: $[TICKER]
-- Official Contract Address: 0x0000000000000000000000000000000000000000
-- Total Supply: 100,000,000
-- Buy/Sell Tax: 0% / 0%
+2. ESCALATION POLICY:
+- If a query cannot be resolved automatically or requires manual intervention, tell the customer:
+  "Please contact our direct support team at priyamrana069@gmail.com with your Order ID for assistance."
 
-OFFICIAL LINKS (ONLY TRUST THESE):
-- Telegram Group: https://t.me/yourgroup
-- X (Twitter): https://x.com/yourproject
-- DEX Swap Link: https://uniswap.org
+3. PRICING & POLICIES:
+- Pricing: Fixed $12 flat rate per instance / month.
+- Refund Policy: STRICT NO REFUNDS. ALL SALES ARE FINAL.
+- Support Email: priyamrana069@gmail.com`;
 
-FREQUENTLY ASKED QUESTIONS:
-Q: What is the contract address?
-A: Always verify the official CA: 0x0000000000000000000000000000000000000000. Admins will NEVER DM you first!
-
-Q: How do I buy $[TICKER]?
-A: Go to our official DEX link, connect your wallet, and swap for $[TICKER].
-
-SECURITY RULES:
-1. Admins will NEVER DM you first or ask for your wallet seed phrase.
-2. Only trust official links pinned in this group.`;
-
-    setBusinessInfo(cryptoTemplate);
+    setBusinessInfo(template);
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">
-      {/* Header */}
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <a
@@ -235,7 +224,6 @@ SECURITY RULES:
         </button>
       </div>
 
-      {/* Search Bar */}
       <div className="max-w-6xl mx-auto mb-8 flex justify-between items-center">
         <input
           type="text"
@@ -249,7 +237,6 @@ SECURITY RULES:
         </span>
       </div>
 
-      {/* Instance List / Grid */}
       <div className="max-w-6xl mx-auto">
         {loading ? (
           <div className="text-center py-12 text-slate-400 text-sm">Loading deployments...</div>
@@ -259,9 +246,6 @@ SECURITY RULES:
           <div className="text-center py-16 bg-slate-900/50 border border-slate-800 rounded-2xl">
             <div className="text-4xl mb-3">🤖</div>
             <h3 className="text-lg font-semibold text-slate-200">No active instances found</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Deploy an agent template from the marketplace to get started.
-            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -287,12 +271,13 @@ SECURITY RULES:
                         <span className="text-slate-200">{instance.id.slice(0, 10)}...</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Template:</span>
-                        <span className="text-slate-200">{instance.template_id}</span>
+                        <span>Type:</span>
+                        <span className="text-purple-400 font-bold uppercase">
+                          {instance.bot_type || 'General'}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Live CPU & GPU Telemetry Monitoring */}
                     <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 mb-4 grid grid-cols-2 gap-2 text-[11px] font-mono">
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400">💻 CPU Load:</span>
@@ -325,12 +310,15 @@ SECURITY RULES:
                       <button
                         onClick={() => {
                           setKeyModalInstance(instance);
+                          setBotType(instance.bot_type || 'general');
                           setUserTelegramToken(instance.bot_token || '');
                           setBusinessInfo(instance.custom_context || '');
+                          setWebsiteUrl(instance.website_url || '');
+                          setStoreApiKey(instance.api_key || '');
                         }}
                         className="flex-1 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-all"
                       >
-                        ⚙️ Configure
+                        ⚙️ Configure Bot
                       </button>
                       <button
                         onClick={() => handleDeleteInstance(instance.id)}
@@ -347,7 +335,7 @@ SECURITY RULES:
         )}
       </div>
 
-      {/* Password Unlock Modal */}
+      {/* Security Unlock Modal */}
       {authModalInstance && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-sm w-full text-white shadow-2xl">
@@ -389,16 +377,45 @@ SECURITY RULES:
         </div>
       )}
 
-      {/* Configure Bot & Knowledge Base Modal */}
+      {/* Configure Bot Modal */}
       {keyModalInstance && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-md w-full text-white shadow-2xl">
-            <h3 className="text-lg font-semibold mb-1">🤖 Configure Telegram AI Agent</h3>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-lg w-full text-white shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-1">🤖 Configure AI Agent</h3>
             <p className="text-xs text-slate-400 mb-4">
-              Paste your Telegram bot token and provide business FAQs to enable 24/7 automated support.
+              Choose your bot configuration type and connect your company details or website integration.
             </p>
 
-            {/* Telegram Token Input */}
+            {/* BOT TYPE TOGGLE BUTTONS */}
+            <div className="grid grid-cols-2 gap-2 mb-5">
+              <button
+                type="button"
+                onClick={() => setBotType('general')}
+                className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${
+                  botType === 'general'
+                    ? 'bg-purple-600 border-purple-500 text-white'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                💬 General Support Bot
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBotType('ecommerce');
+                  handleLoadEcommerceTemplate();
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${
+                  botType === 'ecommerce'
+                    ? 'bg-purple-600 border-purple-500 text-white'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                🛍️ E-Commerce & Service
+              </button>
+            </div>
+
+            {/* Telegram Bot Token Input */}
             <div className="mb-4 text-left">
               <label className="block text-xs font-semibold text-slate-300 mb-1">
                 Telegram Bot Token (from @BotFather)
@@ -412,24 +429,55 @@ SECURITY RULES:
               />
             </div>
 
-            {/* Business Details Input */}
-            <div className="mb-4 text-left">
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-semibold text-slate-300">
-                  📄 Business Details & FAQs (Knowledge Base)
-                </label>
-                <button
-                  type="button"
-                  onClick={handleLoadCryptoTemplate}
-                  className="text-[10px] bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded transition-all font-medium"
-                >
-                  ⚡ Load Crypto Template
-                </button>
+            {/* E-COMMERCE SPECIFIC INPUTS */}
+            {botType === 'ecommerce' && (
+              <div className="mb-4 space-y-3 bg-purple-950/30 border border-purple-500/20 p-3 rounded-lg text-left">
+                <h4 className="text-xs font-bold text-purple-300">
+                  🔗 Company Website & API Integration
+                </h4>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Company Website / API Endpoint URL
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="https://yourcompany.com/api/v1/orders"
+                    value={websiteUrl}
+                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Store API Secret / Auth Key
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="sk_live_your_secret_key"
+                    value={storeApiKey}
+                    onChange={(e) => setStoreApiKey(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                  />
+                </div>
+                <div className="text-[10px] text-slate-400 bg-slate-950 p-2 rounded border border-slate-800 font-mono">
+                  ⚡ <strong>Sales & Update Webhook Endpoint:</strong><br />
+                  <span className="text-purple-400">
+                    https://autocloud-ai-p448.vercel.app/api/broadcast/notify
+                  </span><br />
+                  <span className="text-slate-500">
+                    (Send POST requests to this URL to automatically broadcast sale alerts to your group)
+                  </span>
+                </div>
               </div>
+            )}
 
+            {/* Business Knowledge Base Input */}
+            <div className="mb-4 text-left">
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                📄 Business Knowledge Base & Rules
+              </label>
               <textarea
-                rows={5}
-                placeholder="Enter details your bot should know:&#10;e.g.&#10;- Store Name: AutoCloud AI&#10;- Hours: 9 AM - 6 PM&#10;- Refund Policy: 14 days&#10;- Support Email: support@autocloud.ai"
+                rows={6}
                 value={businessInfo}
                 onChange={(e) => setBusinessInfo(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"

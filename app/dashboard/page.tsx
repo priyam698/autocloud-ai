@@ -173,6 +173,38 @@ const handleDeleteInstance = async (instanceId: string) => {
     } catch (err) {
       alert('Error deleting instance.');
     }
+  const handleLoadCryptoTemplate = () => {
+    const cryptoTemplate = `=== CRYPTO / WEB3 PROJECT KNOWLEDGE BASE ===
+
+PROJECT OVERVIEW:
+Project Name: [PROJECT NAME] ($[TICKER])
+Blockchain: [Ethereum / Solana / BNB / Arbitrum]
+Official Website: https://yourproject.com
+Whitepaper/Docs: https://docs.yourproject.com
+
+TOKENOMICS & CONTRACT ADDRESS:
+- Token Symbol: $[TICKER]
+- Official Contract Address: 0x0000000000000000000000000000000000000000
+- Total Supply: 100,000,000
+- Buy/Sell Tax: 0% / 0%
+
+OFFICIAL LINKS (ONLY TRUST THESE):
+- Telegram Group: https://t.me/yourgroup
+- X (Twitter): https://x.com/yourproject
+- DEX Swap Link: https://uniswap.org
+
+FREQUENTLY ASKED QUESTIONS:
+Q: What is the contract address?
+A: Always verify the official CA: 0x0000000000000000000000000000000000000000. Admins will NEVER DM you first!
+
+Q: How do I buy $[TICKER]?
+A: Go to our official DEX link, connect your wallet, and swap for $[TICKER].
+
+SECURITY RULES:
+1. Admins will NEVER DM you first or ask for your wallet seed phrase.
+2. Only trust official links pinned in this group.`;
+
+    setBusinessInfo(cryptoTemplate);
   };
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">
@@ -375,10 +407,29 @@ const handleDeleteInstance = async (instanceId: string) => {
             </div>
 
             {/* Business Details Input */}
-            <div className="mb-4 text-left">
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                🤖 Business Details & FAQs (Knowledge Base)
-              </label>
+{/* Business Details Input */}
+<div className="mb-4 text-left">
+  <div className="flex justify-between items-center mb-1">
+    <label className="block text-xs font-semibold text-slate-300">
+      🤖 Business Details & FAQs (Knowledge Base)
+    </label>
+    <button
+      type="button"
+      onClick={handleLoadCryptoTemplate}
+      className="text-[10px] bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded transition-all font-medium"
+    >
+      🪙 Load Crypto Template
+    </button>
+  </div>
+
+  <textarea
+    rows={4}
+    placeholder={`Enter details your bot should know:\ne.g.\n- Store Name: AutoCloud AI\n- Support Email: support@autocloud.ai`}
+    value={businessInfo}
+    onChange={(e) => setBusinessInfo(e.target.value)}
+    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+  />
+</div>
               <textarea
                 rows={4}
                 placeholder={`Enter details your bot should know:\ne.g.\n- Store Name: AutoCloud Store\n- Hours: 9 AM - 6 PM\n- Refund Policy: 14 days\n- Support Email: support@example.com`}
@@ -390,26 +441,23 @@ const handleDeleteInstance = async (instanceId: string) => {
 
             <div className="flex gap-2 justify-end mt-6">
               <button
-                onClick={() => {
-                  setKeyModalInstance(null);
-                  setUserTelegramToken('');
-                  setBusinessInfo('');
-                }}
-                className="px-4 py-2 text-xs bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveApiKey}
-                disabled={isSavingKey || !userTelegramToken.trim()}
-                className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg font-medium text-white"
-              >
-                {isSavingKey ? 'Activating Webhook...' : '⚡ Save & Activate Bot'}
-              </button>
-            </div>
-          </div>
+                  type="button"
+                  onClick={() => setKeyModalInstance(null)}
+                  className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveApiKey}
+                  disabled={isSavingKey || !userTelegramToken.trim()}
+                  className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold rounded-lg transition-all flex items-center gap-1.5"
+                >
+                  {isSavingKey ? 'Activating Webhook...' : '⚡ Save & Activate Bot'}
+                </button>
+              </div>
         </div>
       )}
     </div>
   );
+}
 }

@@ -459,15 +459,30 @@ AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
                   />
                 </div>
-                <div className="text-[10px] text-slate-400 bg-slate-950 p-2 rounded border border-slate-800 font-mono">
-                  ⚡ <strong>Sales & Update Webhook Endpoint:</strong><br />
-                  <span className="text-purple-400">
-                    https://autocloud-ai-p448.vercel.app/api/broadcast/notify
-                  </span><br />
-                  <span className="text-slate-500">
-                    (Send POST requests to this URL to automatically broadcast sale alerts to your group)
-                  </span>
-                </div>
+                <div className="text-[10px] text-slate-400 bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono">
+  <div className="flex justify-between items-center mb-1">
+    <strong className="text-purple-300">⚡ Sales & Update Webhook Endpoint:</strong>
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText('https://autocloud-ai-p448.vercel.app/api/broadcast/notify');
+        alert('📋 Webhook URL copied to clipboard!');
+      }}
+      className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/30 px-2 py-0.5 rounded text-[9px]"
+    >
+      Copy URL
+    </button>
+  </div>
+  <input
+    type="text"
+    readOnly
+    value="https://autocloud-ai-p448.vercel.app/api/broadcast/notify"
+    className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-purple-400 text-[10px] font-mono cursor-pointer select-all focus:outline-none"
+  />
+  <span className="text-slate-500 block mt-1">
+    (Buyers copy this URL into their store backend to automatically trigger sales alerts in Telegram)
+  </span>
+</div>
               </div>
             )}
 

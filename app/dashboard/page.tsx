@@ -77,12 +77,11 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (window.location.search.includes('success=true')) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-    fetchInstances();
-  }, []);
-
+  if (typeof window !== 'undefined' && window.location.search.includes('success=true')) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+  fetchInstances();
+}, []);
   // Handle Search Filtering
   useEffect(() => {
     if (!searchQuery.trim()) {

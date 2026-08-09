@@ -21,12 +21,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const appDomain = process.env.NEXT_PUBLIC_APP_URL || 'https://autocloud-ai-p448.vercel.app';
-    
-    // 1. Dynamic Webhook URL for this specific deployment
-    const webhookUrl = instanceId 
-      ? `${appDomain}/api/telegram-webhook/${instanceId}`
-      : `${appDomain}/api/telegram-webhook`;
+    const appDomain =
+      process.env.NEXT_PUBLIC_APP_URL || 'https://autocloud-ai-p448.vercel.app';
+
+    // 1. Webhook URL pointing to your active route
+    const webhookUrl = `${appDomain}/api/telegram-webhook`;
 
     // 2. Automatically register the webhook with Telegram
     const tgRes = await fetch(
@@ -54,7 +53,10 @@ export async function POST(req: Request) {
 
       if (dbError) {
         console.error('[Register DB Error]:', dbError);
-        return NextResponse.json({ success: false, error: dbError.message }, { status: 500 });
+        return NextResponse.json(
+          { success: false, error: dbError.message },
+          { status: 500 }
+        );
       }
     }
 

@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [userTelegramToken, setUserTelegramToken] = useState<string>('');
   const [businessInfo, setBusinessInfo] = useState<string>('');
   const [isSavingKey, setIsSavingKey] = useState<boolean>(false);
+
   // Live Telemetry Metrics State
   const [metrics, setMetrics] = useState({ cpu: '12%', ram: '42%', gpu: '8%', temp: '44°C' });
 
@@ -77,11 +78,12 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-  if (typeof window !== 'undefined' && window.location.search.includes('success=true')) {
-    window.history.replaceState({}, document.title, window.location.pathname);
-  }
-  fetchInstances();
-}, []);
+    if (typeof window !== 'undefined' && window.location.search.includes('success=true')) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    fetchInstances();
+  }, []);
+
   // Handle Search Filtering
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -152,7 +154,8 @@ export default function Dashboard() {
       setIsSavingKey(false);
     }
   };
-const handleDeleteInstance = async (instanceId: string) => {
+
+  const handleDeleteInstance = async (instanceId: string) => {
     if (!confirm('Are you sure you want to delete this agent instance?')) return;
 
     try {
@@ -172,8 +175,10 @@ const handleDeleteInstance = async (instanceId: string) => {
     } catch (err) {
       alert('Error deleting instance.');
     }
+  };
+
   const handleLoadCryptoTemplate = () => {
-    const cryptoTemplate = `=== CRYPTO / WEB3 PROJECT KNOWLEDGE BASE ===
+    const cryptoTemplate = `--- CRYPTO / WEB3 PROJECT KNOWLEDGE BASE ---
 
 PROJECT OVERVIEW:
 Project Name: [PROJECT NAME] ($[TICKER])
@@ -205,16 +210,17 @@ SECURITY RULES:
 
     setBusinessInfo(cryptoTemplate);
   };
+
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">
       {/* Header */}
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <a
-          href="/"
-          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors mb-2 font-medium"
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors mb-2 font-medium"
           >
-          ← Back to Home
+            ← Back to Home
           </a>
           <h1 className="text-3xl font-bold">Agent Dashboard</h1>
           <p className="text-sm text-slate-400 mt-1">
@@ -271,7 +277,7 @@ SECURITY RULES:
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-semibold text-base text-slate-100">{instance.name}</h3>
                       <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">
-                        ● Running
+                        • Running
                       </span>
                     </div>
 
@@ -285,53 +291,54 @@ SECURITY RULES:
                         <span className="text-slate-200">{instance.template_id}</span>
                       </div>
                     </div>
+
+                    {/* Live CPU & GPU Telemetry Monitoring */}
+                    <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 mb-4 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">💻 CPU Load:</span>
+                        <span className="text-purple-400 font-bold">{metrics.cpu}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">🧠 RAM:</span>
+                        <span className="text-blue-400 font-bold">{metrics.ram}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">⚡ GPU VRAM:</span>
+                        <span className="text-emerald-400 font-bold">{metrics.gpu}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">🔥 GPU Temp:</span>
+                        <span className="text-amber-400 font-bold">{metrics.temp}</span>
+                      </div>
+                    </div>
                   </div>
-                  {/* Live CPU & GPU Telemetry Monitoring */}
-<div className="bg-slate-950 border border-slate-800 rounded-lg p-3 mb-4 grid grid-cols-2 gap-2 text-[11px] font-mono">
-  <div className="flex items-center justify-between">
-    <span className="text-slate-400">💻 CPU Load:</span>
-    <span className="text-purple-400 font-bold">{metrics.cpu}</span>
-  </div>
-  <div className="flex items-center justify-between">
-    <span className="text-slate-400">⚡ RAM:</span>
-    <span className="text-blue-400 font-bold">{metrics.ram}</span>
-  </div>
-  <div className="flex items-center justify-between">
-    <span className="text-slate-400">🎮 GPU VRAM:</span>
-    <span className="text-emerald-400 font-bold">{metrics.gpu}</span>
-  </div>
-  <div className="flex items-center justify-between">
-    <span className="text-slate-400">🔥 GPU Temp:</span>
-    <span className="text-amber-400 font-bold">{metrics.temp}</span>
-  </div>
-</div>
 
                   {!isUnlocked ? (
                     <button
                       onClick={() => setAuthModalInstance(instance)}
-                      className="w-full mt-2 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600/30 text-purple-300 text-xs font-medium py-2 rounded-lg transition-all flex items-center justify-center gap-1.5"
+                      className="w-full mt-2 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600/30 text-purple-300 text-xs font-medium py-2 rounded-lg transition-all"
                     >
                       🔒 Enter Password to Unlock
                     </button>
                   ) : (
                     <div className="flex gap-2 mt-2">
-  <button
-    onClick={() => {
-      setKeyModalInstance(instance);
-      setUserTelegramToken(instance.bot_token || '');
-      setBusinessInfo(instance.custom_context || '');
-    }}
-    className="flex-1 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-all"
-  >
-    ⚙️ Configure
-  </button>
-  <button
-    onClick={() => handleDeleteInstance(instance.id)}
-    className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 text-xs font-semibold py-2 px-3 rounded-lg transition-all"
-  >
-    🗑️ Delete
-  </button>
-</div>
+                      <button
+                        onClick={() => {
+                          setKeyModalInstance(instance);
+                          setUserTelegramToken(instance.bot_token || '');
+                          setBusinessInfo(instance.custom_context || '');
+                        }}
+                        className="flex-1 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-all"
+                      >
+                        ⚙️ Configure
+                      </button>
+                      <button
+                        onClick={() => handleDeleteInstance(instance.id)}
+                        className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 text-xs font-semibold py-2 px-3 rounded-lg transition-all"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -367,13 +374,13 @@ SECURITY RULES:
                   setInputPassword('');
                   setAuthError(null);
                 }}
-                className="px-4 py-2 text-xs bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300"
+                className="px-4 py-2 text-xs bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUnlockInstance}
-                className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-500 rounded-lg font-medium text-white"
+                className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-500 rounded-lg font-medium text-white transition-colors"
               >
                 Unlock
               </button>
@@ -406,57 +413,49 @@ SECURITY RULES:
             </div>
 
             {/* Business Details Input */}
-{/* Business Details Input */}
-<div className="mb-4 text-left">
-  <div className="flex justify-between items-center mb-1">
-    <label className="block text-xs font-semibold text-slate-300">
-      🤖 Business Details & FAQs (Knowledge Base)
-    </label>
-    <button
-      type="button"
-      onClick={handleLoadCryptoTemplate}
-      className="text-[10px] bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded transition-all font-medium"
-    >
-      🪙 Load Crypto Template
-    </button>
-  </div>
+            <div className="mb-4 text-left">
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-semibold text-slate-300">
+                  📄 Business Details & FAQs (Knowledge Base)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleLoadCryptoTemplate}
+                  className="text-[10px] bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded transition-all font-medium"
+                >
+                  ⚡ Load Crypto Template
+                </button>
+              </div>
 
-  <textarea
-    rows={4}
-    placeholder={`Enter details your bot should know:\ne.g.\n- Store Name: AutoCloud AI\n- Support Email: support@autocloud.ai`}
-    value={businessInfo}
-    onChange={(e) => setBusinessInfo(e.target.value)}
-    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-  />
-</div>
               <textarea
-                rows={4}
-                placeholder={`Enter details your bot should know:\ne.g.\n- Store Name: AutoCloud Store\n- Hours: 9 AM - 6 PM\n- Refund Policy: 14 days\n- Support Email: support@example.com`}
+                rows={5}
+                placeholder="Enter details your bot should know:&#10;e.g.&#10;- Store Name: AutoCloud AI&#10;- Hours: 9 AM - 6 PM&#10;- Refund Policy: 14 days&#10;- Support Email: support@autocloud.ai"
                 value={businessInfo}
                 onChange={(e) => setBusinessInfo(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"
               />
             </div>
 
             <div className="flex gap-2 justify-end mt-6">
               <button
-                  type="button"
-                  onClick={() => setKeyModalInstance(null)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveApiKey}
-                  disabled={isSavingKey || !userTelegramToken.trim()}
-                  className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold rounded-lg transition-all flex items-center gap-1.5"
-                >
-                  {isSavingKey ? 'Activating Webhook...' : '⚡ Save & Activate Bot'}
-                </button>
-              </div>
+                type="button"
+                onClick={() => setKeyModalInstance(null)}
+                className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveApiKey}
+                disabled={isSavingKey || !userTelegramToken.trim()}
+                className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold rounded-lg transition-all flex items-center gap-1.5"
+              >
+                {isSavingKey ? 'Activating Webhook...' : '⚡ Save & Activate Bot'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
-}
 }

@@ -41,6 +41,12 @@ export default function Dashboard() {
   const [storeApiKey, setStoreApiKey] = useState<string>('');
   const [isSavingKey, setIsSavingKey] = useState<boolean>(false);
 
+  // Crew AI Runner Test State
+  const [crewTaskPrompt, setCrewTaskPrompt] = useState<string>('');
+  const [crewUserApiKey, setCrewUserApiKey] = useState<string>('');
+  const [crewResult, setCrewResult] = useState<string | null>(null);
+  const [isExecutingCrew, setIsExecutingCrew] = useState<boolean>(false);
+
   // Live Telemetry Metrics State
   const [metrics, setMetrics] = useState({ cpu: '12%', ram: '42%', gpu: '8%', temp: '44°C' });
 
@@ -177,7 +183,36 @@ export default function Dashboard() {
       alert('Error deleting instance.');
     }
   };
+const handleRunCrewTask = async () => {
+    if (!keyModalInstance || !crewTaskPrompt.trim()) return;
+    setIsExecutingCrew(true);
+    setCrewResult(null);
 
+    try {
+      const res = await fetch('/api/crew/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceId: keyModalInstance.id,
+          password: keyModalInstance.access_password,
+          taskPrompt: crewTaskPrompt,
+          openAiApiKey: crewUserApiKey,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setCrewResult(data.execution.result);
+      } else {
+        setCrewResult('❌ Error: ' + (data.error || 'Execution failed'));
+      }
+    } catch (err: any) {
+      setCrewResult('❌ Network error executing crew task.');
+    } finally {
+      setIsExecutingCrew(false);
+    }
+  };
   const handleLoadEcommerceTemplate = () => {
     const template = `==================================================
 AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
@@ -496,7 +531,55 @@ AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"
               />
             </div>
+{/* 🚀 LIVE CREW TASK RUNNER TESTER */}
+            <div className="mt-6 pt-5 border-t border-slate-800 text-left">
+              <h4 className="text-xs font-bold text-purple-300 mb-2 flex items-center gap-1.5">
+                🚀 Test LangChain & CrewAI Execution
+              </h4>
+              <div className="space-y-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">
+                    OpenAI API Key (Optional if set on server):
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="sk-proj-..."
+                    value={crewUserApiKey}
+                    onChange={(e) => setCrewUserApiKey(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">
+                    Task Prompt / Agent Goal:
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. Summarize our customer support escalation guidelines and draft a sample response."
+                    value={crewTaskPrompt}
+                    onChange={(e) => setCrewTaskPrompt(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRunCrewTask}
+                  disabled={isExecutingCrew || !crewTaskPrompt.trim()}
+                  className="w-full py-2 bg-purple-600/30 border border-purple-500/40 hover:bg-purple-600/50 disabled:opacity-50 text-purple-200 text-xs font-semibold rounded-lg transition-all"
+                >
+                  {isExecutingCrew ? '⚡ Running Crew Agents...' : '▶ Execute Agent Task'}
+                </button>
 
+                {crewResult && (
+                  <div className="mt-3 p-3 bg-slate-900 border border-purple-500/30 rounded-lg">
+                    <p className="text-[10px] text-purple-300 font-bold mb-1">Agent Output:</p>
+                    <pre className="text-[11px] text-slate-200 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                      {crewResult}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="flex gap-2 justify-end mt-6">
               <button
                 type="button"

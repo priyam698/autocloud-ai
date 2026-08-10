@@ -17,6 +17,7 @@ export async function POST(req: Request) {
     // Only process order creation events
     if (eventName === 'order_created') {
       const orderId = payload.data?.id?.toString();
+      const userEmail = payload.data?.attributes?.user_email;
       const customData = payload.meta?.custom_data || {};
       const templateId = customData.template_id || 'telegram-ai-bot';
 
@@ -34,17 +35,23 @@ export async function POST(req: Request) {
         }
       }
 
-      // 2. Insert ONLY ONE instance
-      const accessPassword = crypto.randomBytes(6).toString('hex');
-      const { error } = await supabase.from('deployments').insert([
-        {
-          name: 'Telegram AI Bot Runner',
-          template_id: templateId,
-          order_id: orderId || null,
-          access_password: accessPassword,
-          is_enabled: true,
-        },
-      ]);
+      // 2. Insert ONLY ONE instance with generated access password & user email
+      const accessPassword = crypto.randomBytes(4).toString('hex').toUpperCase(); // e.g., 'A3F81B2C'
+
+      const { data: newDeployment, error } = await supabase
+        .from('deployments')
+        .insert([
+          {
+            name: 'Telegram AI Bot Runner',
+            template_id: templateId,
+            order_id: orderId || null,
+            user_email: userEmail || null,
+            access_password: accessPassword,
+            is_enabled: true,
+          },
+        ])
+        .select()
+        .single();
 
       if (error) {
         console.error('[Webhook DB Error]:', error);
@@ -52,6 +59,27 @@ export async function POST(req: Request) {
       }
 
       console.log(`[Webhook] Created single instance for order ${orderId}`);
+
+      // 3. DISPATCH CREDENTIALS EMAIL TO BUYER'S GMAIL
+      if (userEmail && newDeployment) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://autocloud-ai-p448.vercel.app';
+        
+        try {
+          await fetch(`${appUrl}/api/auth/send-credentials`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_email: userEmail,
+              instanceId: newDeployment.id,
+              access_password: accessPassword,
+              instanceName: newDeployment.name,
+            }),
+          });
+          console.log(`[Webhook] Sent password email to ${userEmail}`);
+        } catch (emailErr) {
+          console.error('[Webhook Email Dispatch Error]:', emailErr);
+        }
+      }
     }
 
     return NextResponse.json({ success: true });

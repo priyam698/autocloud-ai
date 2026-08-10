@@ -196,7 +196,7 @@ const handleRunCrewTask = async () => {
           instanceId: keyModalInstance.id,
           password: keyModalInstance.access_password,
           taskPrompt: crewTaskPrompt,
-          openAiApiKey: crewUserApiKey,
+          userGroqApiKey: crewUserApiKey,
         }),
       });
 
@@ -539,15 +539,15 @@ AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
               <div className="space-y-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    OpenAI API Key (Optional if set on server):
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="sk-proj-..."
-                    value={crewUserApiKey}
-                    onChange={(e) => setCrewUserApiKey(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-                  />
+  Groq API Key (Optional — uses Vercel GROQ_API_KEY by default):
+</label>
+<input
+  type="password"
+  placeholder="gsk_..."
+  value={crewUserApiKey}
+  onChange={(e) => setCrewUserApiKey(e.target.value)}
+  className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+/>
                 </div>
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">

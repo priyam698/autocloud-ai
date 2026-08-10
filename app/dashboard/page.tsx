@@ -36,6 +36,14 @@ export default function Dashboard() {
   const [keyModalInstance, setKeyModalInstance] = useState<DeploymentInstance | null>(null);
   const [botType, setBotType] = useState<'general' | 'ecommerce'>('general');
   const [userTelegramToken, setUserTelegramToken] = useState<string>('');
+  // Multi-Channel Platform States
+  const [selectedChannel, setSelectedChannel] = useState<'telegram' | 'whatsapp' | 'webchat' | 'discord' | 'slack' | 'messenger'>('telegram');
+  const [whatsappPhoneId, setWhatsappPhoneId] = useState<string>('');
+  const [whatsappToken, setWhatsappToken] = useState<string>('');
+  const [discordToken, setDiscordToken] = useState<string>('');
+  const [slackToken, setSlackToken] = useState<string>('');
+  const [messengerPageToken, setMessengerPageToken] = useState<string>('');
+
   const [businessInfo, setBusinessInfo] = useState<string>('');
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
   const [storeApiKey, setStoreApiKey] = useState<string>('');
@@ -448,18 +456,139 @@ AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
               </button>
             </div>
 
-            {/* Telegram Bot Token Input */}
-            <div className="mb-4 text-left">
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Telegram Bot Token (from @BotFather)
+            {/* 🌐 OMNICHANNEL CHANNEL SELECTOR */}
+            <div className="mb-5 text-left">
+              <label className="block text-xs font-semibold text-slate-300 mb-2">
+                Select Integration Channel:
               </label>
-              <input
-                type="text"
-                placeholder="e.g. 8933256473:AAHoCwrKmPq..."
-                value={userTelegramToken}
-                onChange={(e) => setUserTelegramToken(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-              />
+              <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-950 border border-slate-800 rounded-xl mb-4">
+                {[
+                  { id: 'telegram', label: '✈️ Telegram' },
+                  { id: 'whatsapp', label: '💬 WhatsApp' },
+                  { id: 'webchat', label: '🌐 Web Chat' },
+                  { id: 'discord', label: '👾 Discord' },
+                  { id: 'slack', label: '💼 Slack' },
+                  { id: 'messenger', label: '📸 Meta DM' },
+                ].map((ch) => (
+                  <button
+                    key={ch.id}
+                    type="button"
+                    onClick={() => setSelectedChannel(ch.id as any)}
+                    className={`py-2 px-2 rounded-lg text-xs font-medium transition-all ${
+                      selectedChannel === ch.id
+                        ? 'bg-purple-600 text-white font-semibold shadow'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                    }`}
+                  >
+                    {ch.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 1. TELEGRAM INPUT */}
+              {selectedChannel === 'telegram' && (
+                <div className="space-y-1">
+                  <label className="block text-[11px] text-slate-400 font-medium">Telegram Bot Token (from @BotFather):</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 8933256473:AAHoCwrKmPq..."
+                    value={userTelegramToken}
+                    onChange={(e) => setUserTelegramToken(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              )}
+
+              {/* 2. WHATSAPP INPUTS */}
+              {selectedChannel === 'whatsapp' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] text-slate-400 font-medium">WhatsApp Phone Number ID:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 10928374829301"
+                      value={whatsappPhoneId}
+                      onChange={(e) => setWhatsappPhoneId(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-400 font-medium">Meta Cloud System User Access Token:</label>
+                    <input
+                      type="password"
+                      placeholder="EAAG..."
+                      value={whatsappToken}
+                      onChange={(e) => setWhatsappToken(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 3. WEBSITE CHAT EMBED SCRIPT */}
+              {selectedChannel === 'webchat' && (
+                <div className="space-y-2 bg-slate-950 p-3.5 border border-purple-500/30 rounded-xl">
+                  <p className="text-xs text-purple-300 font-semibold">Embed AI Chat on Any Website:</p>
+                  <p className="text-[11px] text-slate-400">Copy and paste this script tag right before the closing <code>&lt;/body&gt;</code> tag on your website:</p>
+                  <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+                    <code className="text-[10px] font-mono text-purple-300 select-all">
+                      {`<script src="https://autocloud-ai-p448.vercel.app/widget.js" data-instance-id="${keyModalInstance.id}"></script>`}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`<script src="https://autocloud-ai-p448.vercel.app/widget.js" data-instance-id="${keyModalInstance.id}"></script>`);
+                        alert('📋 Web Chat embed code copied to clipboard!');
+                      }}
+                      className="text-[10px] bg-purple-600/40 text-purple-200 px-2.5 py-1 rounded hover:bg-purple-600/60 font-medium ml-2 shrink-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. DISCORD INPUT */}
+              {selectedChannel === 'discord' && (
+                <div className="space-y-1">
+                  <label className="block text-[11px] text-slate-400 font-medium">Discord Bot Token (Developer Portal):</label>
+                  <input
+                    type="password"
+                    placeholder="MTAy..."
+                    value={discordToken}
+                    onChange={(e) => setDiscordToken(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              )}
+
+              {/* 5. SLACK INPUT */}
+              {selectedChannel === 'slack' && (
+                <div className="space-y-1">
+                  <label className="block text-[11px] text-slate-400 font-medium">Slack Bot User OAuth Token (xoxb-...):</label>
+                  <input
+                    type="password"
+                    placeholder="xoxb-..."
+                    value={slackToken}
+                    onChange={(e) => setSlackToken(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              )}
+
+              {/* 6. MESSENGER / INSTAGRAM INPUT */}
+              {selectedChannel === 'messenger' && (
+                <div className="space-y-1">
+                  <label className="block text-[11px] text-slate-400 font-medium">Meta Page / Instagram Access Token:</label>
+                  <input
+                    type="password"
+                    placeholder="EAA..."
+                    value={messengerPageToken}
+                    onChange={(e) => setMessengerPageToken(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              )}
             </div>
 
             {/* E-COMMERCE SPECIFIC INPUTS */}

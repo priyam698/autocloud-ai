@@ -297,7 +297,26 @@ AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
                       </div>
                     </div>
                   </div>
-
+{/* 🔑 INSTANCE ACCESS PASSWORD DISPLAY */}
+                  <div className="bg-slate-950 border border-purple-500/30 rounded-lg p-3 my-3 text-left">
+                    <p className="text-xs text-slate-400 mb-1 font-medium">🔑 Instance Access Password:</p>
+                    <div className="flex items-center justify-between">
+                      <code className="text-sm font-bold text-purple-300 font-mono tracking-wider">
+                        {instance.access_password || 'AC-KEY-GENERATED'}
+                      </code>
+                      <button
+                        onClick={() => {
+                          if (instance.access_password) {
+                            navigator.clipboard.writeText(instance.access_password);
+                            alert('📋 Access password copied to clipboard!');
+                          }
+                        }}
+                        className="text-xs bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 px-2.5 py-1 rounded transition font-semibold"
+                      >
+                        Copy Password
+                      </button>
+                    </div>
+                  </div>
                   {!isUnlocked ? (
                     <button
                       onClick={() => setAuthModalInstance(instance)}

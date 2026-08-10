@@ -1,10 +1,20 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req: Request) {
   try {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.error('RESEND_API_KEY is not defined in environment variables.');
+      return NextResponse.json(
+        { error: 'Server email configuration missing.' },
+        { status: 500 }
+      );
+    }
+
+    // Instantiate Resend dynamically inside the request handler
+    const resend = new Resend(apiKey);
+
     const body = await req.json();
     const { user_email, instanceId, access_password, instanceName } = body;
 
@@ -17,7 +27,7 @@ export async function POST(req: Request) {
 
     // Send styled email via Resend
     const emailResult = await resend.emails.send({
-      from: 'AutoCloud AI <onboarding@resend.dev>', // Replace with your custom domain once verified
+      from: 'AutoCloud AI <onboarding@resend.dev>',
       to: [user_email],
       subject: '🚀 Your AutoCloud AI Agent Access Credentials',
       html: `

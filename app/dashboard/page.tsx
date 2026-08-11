@@ -41,6 +41,7 @@ export default function Dashboard() {
   const [whatsappPhoneId, setWhatsappPhoneId] = useState<string>('');
   const [whatsappToken, setWhatsappToken] = useState<string>('');
   const [discordToken, setDiscordToken] = useState<string>('');
+  const [discordPublicKey, setDiscordPublicKey] = useState<string>('');
   const [slackToken, setSlackToken] = useState<string>('');
   const [messengerPageToken, setMessengerPageToken] = useState<string>('');
 
@@ -148,11 +149,17 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           instanceId: keyModalInstance.id,
-          botToken: userTelegramToken,
-          custom_context: businessInfo,
-          bot_type: botType,
-          website_url: websiteUrl,
-          api_key: storeApiKey,
+          botToken: userTelegramToken || '',
+          discord_token: discordToken || '',
+          discord_public_key: discordPublicKey || '',
+          slack_token: slackToken || '',
+          whatsapp_phone_id: whatsappPhoneId || '',
+          whatsapp_token: whatsappToken || '',
+          messenger_token: messengerPageToken || '',
+          custom_context: businessInfo || '',
+          bot_type: botType || 'general',
+          website_url: websiteUrl || '',
+          api_key: storeApiKey || '',
         }),
       });
 
@@ -160,15 +167,15 @@ export default function Dashboard() {
 
       if (res.ok && data.success) {
         const channelNames: Record<string, string> = {
-        telegram: 'Telegram Bot',
-        discord: 'Discord Bot',
-        slack: 'Slack Bot',
-        whatsapp: 'WhatsApp Business',
-        messenger: 'Meta DM / Instagram',
-        webchat: 'Web Chat Widget',
-      };
-      const channelLabel = channelNames[selectedChannel] || 'AI Agent';
-      alert(`🎉 ${channelLabel} & Knowledge Base updated successfully!`);
+          telegram: 'Telegram Bot',
+          discord: 'Discord Bot',
+          slack: 'Slack Bot',
+          whatsapp: 'WhatsApp Business',
+          messenger: 'Meta DM / Instagram',
+          webchat: 'Web Chat Widget',
+        };
+        const channelLabel = channelNames[selectedChannel] || 'AI Agent';
+        alert(`🎉 ${channelLabel} & Knowledge Base updated successfully!`);
         setKeyModalInstance(null);
         fetchInstances();
       } else {
@@ -598,18 +605,38 @@ const handleAutoScrape = async () => {
               )}
 
               {/* 4. DISCORD INPUT */}
-              {selectedChannel === 'discord' && (
-                <div className="space-y-1">
-                  <label className="block text-[11px] text-slate-400 font-medium">Discord Bot Token (Developer Portal):</label>
-                  <input
-                    type="password"
-                    placeholder="MTAy..."
-                    value={discordToken}
-                    onChange={(e) => setDiscordToken(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              )}
+      {selectedChannel === 'discord' && (
+        <div className="space-y-3 text-left">
+          <div>
+            <label className="block text-[11px] text-slate-400 font-medium mb-1">
+              Discord Bot Token (Developer Portal)
+            </label>
+            <input
+              type="password"
+              placeholder="MTAy..."
+              value={discordToken}
+              onChange={(e) => setDiscordToken(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-slate-400 font-medium mb-1">
+              Discord Application Public Key
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. 1a2b3c4d5e6f..."
+              value={discordPublicKey}
+              onChange={(e) => setDiscordPublicKey(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none"
+            />
+            <span className="text-[10px] text-slate-500 block mt-1">
+              Found under Discord Developer Portal &gt; General Information.
+            </span>
+          </div>
+        </div>
+      )}
 
               {/* 5. SLACK INPUT */}
               {selectedChannel === 'slack' && (

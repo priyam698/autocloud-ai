@@ -16,10 +16,10 @@ export async function POST(req: Request) {
     return new NextResponse('Empty body', { status: 400 });
   }
 
-  let body;
+  let body: any;
   try {
     body = JSON.parse(rawBody);
-  } catch (e) {
+  } catch {
     return new NextResponse('Invalid JSON', { status: 400 });
   }
 
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ type: 1 });
   }
 
-  // 2. For actual messages/interactions, verify signature against registered keys
+  // 2. Verify Ed25519 Signature against registered customer keys
   if (signature && timestamp) {
     const { data: instances } = await supabase
       .from('deployments')
@@ -52,11 +52,17 @@ export async function POST(req: Request) {
     }
   }
 
-  // 3. Respond to Discord messages / slash commands
-  return NextResponse.json({
-    type: 4,
-    data: {
-      content: "Hello! AutoCloud AI is online and ready to assist.",
-    },
-  });
+  // 3. Handle Slash Commands (Type 2)
+  if (body.type === 2) {
+    const userQuery = body.data?.options?.[0]?.value || 'Hello';
+
+    return NextResponse.json({
+      type: 4,
+      data: {
+        content: `🤖 **AutoCloud AI Agent**\n\n> **Question:** ${userQuery}\n\nThank you for reaching out! Your query is being processed by our knowledge base.`,
+      },
+    });
+  }
+
+  return NextResponse.json({ type: 4, data: { content: 'Received interaction.' } });
 }

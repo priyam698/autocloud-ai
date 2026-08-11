@@ -159,7 +159,16 @@ export default function Dashboard() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        alert('🎉 Telegram Bot & Website API linked successfully!');
+        const channelNames: Record<string, string> = {
+        telegram: 'Telegram Bot',
+        discord: 'Discord Bot',
+        slack: 'Slack Bot',
+        whatsapp: 'WhatsApp Business',
+        messenger: 'Meta DM / Instagram',
+        webchat: 'Web Chat Widget',
+      };
+      const channelLabel = channelNames[selectedChannel] || 'AI Agent';
+      alert(`🎉 ${channelLabel} & Knowledge Base updated successfully!`);
         setKeyModalInstance(null);
         fetchInstances();
       } else {

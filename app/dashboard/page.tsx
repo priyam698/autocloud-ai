@@ -791,7 +791,7 @@ const handleAutoScrape = async () => {
               <button
                 type="button"
                 onClick={handleSaveApiKey}
-                disabled={isSavingKey || !userTelegramToken.trim()}
+                disabled={isSavingKey}
                 className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold rounded-lg transition-all flex items-center gap-1.5"
               >
                 {isSavingKey ? 'Activating Webhook...' : '⚡ Save & Activate Bot'}

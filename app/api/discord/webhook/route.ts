@@ -41,7 +41,7 @@ export async function POST(req: Request) {
 
     let isValid = false;
     for (const key of publicKeys) {
-      if (verifyKey(rawBody, signature, timestamp, key)) {
+      if (await verifyKey(rawBody, signature, timestamp, key)) {
         isValid = true;
         break;
       }

@@ -461,7 +461,7 @@ const handleAutoScrape = async () => {
       {/* Configure Bot Modal */}
       {keyModalInstance && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-lg w-full text-white shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-lg w-full text-white shadow-2xl max-h-[80vh] overflow-y-auto pb-12">
             <h3 className="text-lg font-semibold mb-1">🤖 Configure AI Agent</h3>
             <p className="text-xs text-slate-400 mb-4">
               Choose your bot configuration type and connect your company details or website integration.

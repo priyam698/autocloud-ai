@@ -48,6 +48,8 @@ export default function Dashboard() {
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
   const [storeApiKey, setStoreApiKey] = useState<string>('');
   const [isSavingKey, setIsSavingKey] = useState<boolean>(false);
+  const [isScraping, setIsScraping] = useState<boolean>(false);
+  const [scrapeStatus, setScrapeStatus] = useState<string>('');
 
   // Crew AI Runner Test State
   const [crewTaskPrompt, setCrewTaskPrompt] = useState<string>('');
@@ -243,7 +245,45 @@ AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
 
     setBusinessInfo(template);
   };
+const handleAutoScrape = async () => {
+    if (!websiteUrl) {
+      alert('Please enter a website URL');
+      return;
+    }
 
+    const targetId = keyModalInstance?.id || instances[0]?.id;
+
+    if (!targetId) {
+      alert('No active deployment selected.');
+      return;
+    }
+
+    setIsScraping(true);
+    setScrapeStatus('⏳ Scraping website content...');
+
+    try {
+      const res = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceId: targetId, websiteUrl }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setScrapeStatus(`✨ Success! Scraped ${data.charCount || ''} characters into AI knowledge.`);
+        if (data.knowledgeContext) {
+          setBusinessInfo(data.knowledgeContext);
+        }
+      } else {
+        setScrapeStatus(`❌ Error: ${data.error || 'Failed to scrape'}`);
+      }
+    } catch (err) {
+      setScrapeStatus('❌ Request failed. Check console.');
+    } finally {
+      setIsScraping(false);
+    }
+  };
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -660,6 +700,37 @@ AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"
               />
             </div>
+           {/* 🌐 Auto-Train AI from Website URL */}
+<div className="mb-4 text-left p-3.5 bg-slate-900/80 border border-slate-800 rounded-xl">
+  <label className="block text-xs font-semibold text-slate-300 mb-1">
+    🌐 Auto-Train AI from Website URL
+  </label>
+  <p className="text-[11px] text-slate-400 mb-2">
+    Enter customer website link to scrape FAQs, products, and support details automatically.
+  </p>
+  <div className="flex gap-2">
+    <input
+      type="url"
+      placeholder="https://example.com"
+      value={websiteUrl}
+      onChange={(e) => setWebsiteUrl(e.target.value)}
+      className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+    />
+    <button
+      type="button"
+      onClick={handleAutoScrape}
+      disabled={isScraping}
+      className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 text-white text-xs font-medium rounded-lg transition-colors whitespace-nowrap"
+    >
+      {isScraping ? 'Scraping...' : '⚡ Auto-Scrape'}
+    </button>
+  </div>
+  {scrapeStatus && (
+    <p className="mt-2 text-[11px] text-purple-300 font-mono">
+      {scrapeStatus}
+    </p>
+  )}
+</div>
 {/* 🚀 LIVE CREW TASK RUNNER TESTER */}
             <div className="mt-6 pt-5 border-t border-slate-800 text-left">
               <h4 className="text-xs font-bold text-purple-300 mb-2 flex items-center gap-1.5">

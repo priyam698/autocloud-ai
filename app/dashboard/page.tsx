@@ -816,6 +816,16 @@ const handleAutoScrape = async () => {
                 )}
               </div>
             </div>
+            {/* Discord /ask Command Guide Notice */}
+          <div className="mb-4 p-3 bg-blue-950/50 border border-blue-500/30 rounded-lg flex items-start gap-3 text-xs text-blue-200">
+            <span className="text-base">💡</span>
+            <div>
+              <strong className="text-white block font-medium mb-0.5">How your users talk to the bot in Discord:</strong>
+              <p className="text-blue-300">
+                Discord webhook bots require slash commands. Tell your server members to type <code className="bg-blue-900/80 px-1.5 py-0.5 rounded text-blue-100 font-mono font-bold">/ask</code> in any channel to start chatting!
+              </p>
+            </div>
+          </div>
             <div className="flex gap-2 justify-end mt-6">
               <button
                 type="button"

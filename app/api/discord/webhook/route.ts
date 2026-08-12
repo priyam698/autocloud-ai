@@ -21,7 +21,12 @@ export async function POST(req: Request) {
     return new NextResponse('Invalid JSON', { status: 400 });
   }
 
-  // 1. Verify Ed25519 Signature against registered keys
+  // 1. ALWAYS pass Discord's URL verification ping instantly (Type 1)
+  if (body.type === 1) {
+    return NextResponse.json({ type: 1 });
+  }
+
+  // 2. Signature verification for actual slash commands
   if (signature && timestamp) {
     const { data: instances } = await supabase
       .from('deployments')
@@ -40,18 +45,12 @@ export async function POST(req: Request) {
       }
     }
 
-    // If key verification fails, reject request
     if (!isValid && publicKeys.length > 0) {
       return new NextResponse('Bad request signature', { status: 401 });
     }
   }
 
-  // 2. Respond to Discord URL Verification Ping (Type 1)
-  if (body.type === 1) {
-    return NextResponse.json({ type: 1 });
-  }
-
-  // 3. Respond to Slash Commands (Type 2)
+  // 3. Handle Slash Commands (Type 2)
   if (body.type === 2) {
     const userQuery = body.data?.options?.[0]?.value || 'Hello';
 

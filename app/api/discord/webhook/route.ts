@@ -21,12 +21,12 @@ export async function POST(req: Request) {
     return new NextResponse('Invalid JSON', { status: 400 });
   }
 
-  // 1. ALWAYS pass Discord's URL verification ping instantly (Type 1)
+  // 1. FIRST: Instantly answer Discord's URL verification ping (Type 1)
   if (body.type === 1) {
     return NextResponse.json({ type: 1 });
   }
 
-  // 2. Signature verification for actual slash commands
+  // 2. SECOND: Verify Ed25519 Signature for actual Slash Commands
   if (signature && timestamp) {
     const { data: instances } = await supabase
       .from('deployments')
@@ -50,14 +50,14 @@ export async function POST(req: Request) {
     }
   }
 
-  // 3. Handle Slash Commands (Type 2)
+  // 3. THIRD: Process incoming Slash Commands (Type 2)
   if (body.type === 2) {
     const userQuery = body.data?.options?.[0]?.value || 'Hello';
 
     return NextResponse.json({
       type: 4,
       data: {
-        content: `🤖 **AutoCloud AI Agent:**\n\n> **Question:** ${userQuery}\n\nHello! Your request was received and processed successfully.`,
+        content: `🤖 **AutoCloud AI Agent:**\n\n> **Question:** ${userQuery}\n\nYour request was received and processed successfully!`,
       },
     });
   }

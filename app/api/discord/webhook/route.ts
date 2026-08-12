@@ -12,8 +12,40 @@ export async function POST(req: Request) {
   const timestamp = req.headers.get('x-signature-timestamp');
   const rawBody = await req.text();
 
-  if (!rawBody) return new NextResponse('Empty body', { status: 400 });
+  // 1. Instantly reject requests without Discord security headers
+  if (!signature || !timestamp || !rawBody) {
+    return new NextResponse('Bad request signature', { status: 401 });
+  }
 
+  // 2. Dynamically fetch all customer Public Keys stored in Supabase
+  const { data: deployments } = await supabase
+    .from('deployments')
+    .select('discord_public_key')
+    .not('discord_public_key', 'is', null);
+
+  const registeredKeys = (deployments || [])
+    .map((d) => d.discord_public_key?.trim())
+    .filter((k): k is string => Boolean(k && k.length > 0));
+
+  // 3. Verify cryptographic Ed25519 signature against registered customer keys
+  let isValid = false;
+  for (const key of registeredKeys) {
+    try {
+      if (await verifyKey(rawBody, signature, timestamp, key)) {
+        isValid = true;
+        break;
+      }
+    } catch {
+      // Continue checking next key if format mismatch
+    }
+  }
+
+  // Reject if signature doesn't match any registered key in the database
+  if (!isValid) {
+    return new NextResponse('Bad request signature', { status: 401 });
+  }
+
+  // Parse interaction JSON payload after verification passes
   let body: any;
   try {
     body = JSON.parse(rawBody);
@@ -21,36 +53,12 @@ export async function POST(req: Request) {
     return new NextResponse('Invalid JSON', { status: 400 });
   }
 
-  // 1. FIRST: Instantly answer Discord's URL verification ping (Type 1)
+  // 4. Respond to Discord's URL Verification Handshake Ping (Type 1)
   if (body.type === 1) {
     return NextResponse.json({ type: 1 });
   }
 
-  // 2. SECOND: Verify Ed25519 Signature for actual Slash Commands
-  if (signature && timestamp) {
-    const { data: instances } = await supabase
-      .from('deployments')
-      .select('discord_public_key')
-      .not('discord_public_key', 'is', null);
-
-    const publicKeys = (instances || [])
-      .map((i) => i.discord_public_key)
-      .filter(Boolean);
-
-    let isValid = false;
-    for (const key of publicKeys) {
-      if (await verifyKey(rawBody, signature, timestamp, key)) {
-        isValid = true;
-        break;
-      }
-    }
-
-    if (!isValid && publicKeys.length > 0) {
-      return new NextResponse('Bad request signature', { status: 401 });
-    }
-  }
-
-  // 3. THIRD: Process incoming Slash Commands (Type 2)
+  // 5. Respond to Slash Commands (Type 2)
   if (body.type === 2) {
     const userQuery = body.data?.options?.[0]?.value || 'Hello';
 

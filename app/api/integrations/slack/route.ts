@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: Request) {
   try {
@@ -14,10 +13,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Token is required' }, { status: 400 });
     }
 
-    // Save token to Supabase under customer's record
+    const targetTeam = teamId || 'default_team';
+
+    // Upsert with explicit onConflict matching to handle existing teams cleanly
     const { error } = await supabase
       .from('integrations')
-      .upsert({ team_id: teamId || 'default_team', slack_token: slackToken });
+      .upsert(
+        { team_id: targetTeam, slack_token: slackToken },
+        { onConflict: 'team_id' }
+      );
 
     if (error) throw error;
 

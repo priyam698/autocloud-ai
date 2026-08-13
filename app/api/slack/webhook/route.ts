@@ -21,14 +21,25 @@ export async function POST(req: Request) {
       const userText = body.event.text;
       const teamId = body.team_id;
 
-      // Lookup customer's token dynamically from Supabase
-      const { data: config } = await supabase
-        ? await supabase.from('integrations').select('slack_token').eq('team_id', teamId).single()
-        : { data: null };
+      // Dynamic token lookup from Supabase
+    let { data: config } = await supabase
+      .from('integrations')
+      .select('slack_token')
+      .eq('team_id', teamId)
+      .single();
 
-      // Fallback to Vercel env variable if testing on your own dev workspace
-      const botToken = config?.slack_token || process.env.SLACK_BOT_TOKEN;
+    // Fallback to the latest saved token if team_id isn't linked yet
+    if (!config?.slack_token) {
+      const { data: latest } = await supabase
+        .from('integrations')
+        .select('slack_token')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      config = latest;
+    }
 
+    const botToken = config?.slack_token || process.env.SLACK_BOT_TOKEN;
       if (!botToken) {
         return NextResponse.json({ error: 'No token found for this workspace' }, { status: 400 });
       }

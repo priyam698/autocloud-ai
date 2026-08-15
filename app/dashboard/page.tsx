@@ -322,13 +322,7 @@ const handleAutoScrape = async () => {
         >
           🔄 Refresh Status
         </button>
-        <Link
-  href="/dashboard/knowledge"
-  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 self-start md:self-auto"
->
-  <span>📚</span>
-  <span>Knowledge Base</span>
-</Link>
+        
       </div>
 
       <div className="max-w-6xl mx-auto mb-8 flex justify-between items-center">
@@ -833,6 +827,18 @@ const handleAutoScrape = async () => {
                 Discord webhook bots require slash commands. Tell your server members to type <code className="bg-blue-900/80 px-1.5 py-0.5 rounded text-blue-100 font-mono font-bold">/ask</code> in any channel to start chatting!
               </p>
             </div>
+          </div>
+          {/* Bot-Specific Knowledge Base Link */}
+          <div className="pt-3 pb-2 border-t border-slate-800 my-4">
+            <Link
+              href={`/dashboard/knowledge?teamId=${keyModalInstance?.id || 'default'}`}
+              target="_blank"
+              className="w-full py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition"
+            >
+              <span>📚</span>
+              <span>Open Knowledge Base & Training for this Bot</span>
+              <span className="text-[10px] opacity-70">↗</span>
+            </Link>
           </div>
             <div className="flex gap-2 justify-end mt-6">
               <button

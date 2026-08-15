@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 interface DeploymentInstance {
   id: string;
@@ -321,6 +322,13 @@ const handleAutoScrape = async () => {
         >
           🔄 Refresh Status
         </button>
+        <Link
+  href="/dashboard/knowledge"
+  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 self-start md:self-auto"
+>
+  <span>📚</span>
+  <span>Knowledge Base</span>
+</Link>
       </div>
 
       <div className="max-w-6xl mx-auto mb-8 flex justify-between items-center">

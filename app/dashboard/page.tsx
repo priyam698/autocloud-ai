@@ -886,71 +886,121 @@ const handleAutoScrape = async () => {
             </div>
 
             {/* Guide Steps */}
-            <div className="p-5 overflow-y-auto space-y-3 text-xs text-slate-300 leading-relaxed max-h-[60vh]">
+            <div className="p-5 overflow-y-auto space-y-4 text-xs text-slate-300 leading-relaxed max-h-[60vh]">
+              
+              {/* TELEGRAM GUIDE */}
               {activeGuideTab === 'telegram' && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider">Telegram Setup</h4>
-                  <ol className="list-decimal pl-4 space-y-1.5">
-                    <li>Open Telegram and search for <b>@BotFather</b>.</li>
-                    <li>Send <code>/newbot</code> and follow the prompts to receive your <b>HTTP API Token</b>.</li>
-                    <li>In AutoCloud, paste the token into <b>Telegram Bot Token</b> and click <b>⚡ Save & Activate Bot</b>.</li>
-                    <li>Open this webhook activation URL in a new browser tab (replace <code>YOUR_BOT_TOKEN</code> with your actual token):
-                      <div className="p-2 bg-slate-950 border border-slate-800 rounded font-mono text-[11px] text-purple-400 mt-1 select-all break-all">
-                        https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook?url=https://autocloud-ai-p448.vercel.app/api/telegram-webhook?teamId=bcd2b32a-e9f6-40f8-81fc-3f06ccbcbb46
-                      </div>
-                    </li>
-                  </ol>
-                </div>
-              )}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-purple-400 font-bold text-sm">
+                    <span>✈️</span> Telegram Bot Setup (3 Simple Steps)
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 1: Get Bot Token</span>
+                      <p className="text-slate-400 mt-1">Open Telegram, message <b>@BotFather</b>, type <code>/newbot</code>, and copy your API Token.</p>
+                    </div>
 
-              {activeGuideTab === 'webchat' && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider">Web Chat Widget Setup</h4>
-                  <p>Paste this script tag directly before the closing <code>&lt;/body&gt;</code> tag of your website or store theme:</p>
-                  <div className="p-2.5 bg-slate-950 border border-slate-800 rounded font-mono text-[11px] text-purple-400 select-all break-all">
-                    &lt;script src="https://autocloud-ai-p448.vercel.app/widget.js" data-team-id="bcd2b32a-e9f6-40f8-81fc-3f06ccbcbb46"&gt;&lt;/script&gt;
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 2: Save in AutoCloud</span>
+                      <p className="text-slate-400 mt-1">Paste the token into the <b>Telegram Bot Token</b> box in your config window and click <b>Save & Activate</b>.</p>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 3: Activate Webhook (Click to Open)</span>
+                      <p className="text-slate-400 mt-1">Paste this link into your browser (replace <code>YOUR_TOKEN</code> with your real token):</p>
+                      <div className="p-2 bg-slate-900 border border-slate-800 rounded font-mono text-[11px] text-purple-300 mt-1 select-all break-all">
+                        https://api.telegram.org/botYOUR_TOKEN/setWebhook?url=https://autocloud-ai-p448.vercel.app/api/telegram-webhook?teamId=bcd2b32a-e9f6-40f8-81fc-3f06ccbcbb46
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {activeGuideTab === 'slack' && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider">Slack Bot Setup</h4>
-                  <ol className="list-decimal pl-4 space-y-1.5">
-                    <li>Visit <b>api.slack.com/apps</b> and click <b>Create New App</b> (From scratch).</li>
-                    <li>Under <b>OAuth & Permissions → Scopes</b>, add: <code>app_mention</code>, <code>chat:write</code>, and <code>im:history</code>.</li>
-                    <li>Click <b>Install to Workspace</b> and copy the <b>Bot User OAuth Token</b> (starts with <code>xoxb-</code>).</li>
-                    <li>Paste the token into AutoCloud under <b>Configure Bot → Slack</b> and click <b>⚡ Save & Activate Bot</b>.</li>
-                    <li>In Slack settings under <b>Event Subscriptions</b>, toggle <b>Enable Events to ON</b> and set Request URL:
-                      <div className="p-2 bg-slate-950 border border-slate-800 rounded font-mono text-[11px] text-purple-400 mt-1 select-all break-all">
-                        https://autocloud-ai-p448.vercel.app/api/slack/events?teamId=bcd2b32a-e9f6-40f8-81fc-3f06ccbcbb46
-                      </div>
-                    </li>
-                    <li>Under <b>Subscribe to bot events</b>, add <code>message.im</code> and <code>app_mention</code>.</li>
-                  </ol>
+              {/* WEB CHAT WIDGET GUIDE */}
+              {activeGuideTab === 'webchat' && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-purple-400 font-bold text-sm">
+                    <span>🌐</span> Web Chat Widget (Instant Setup)
+                  </div>
+                  
+                  <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                    <span className="font-semibold text-white">Embed Script on Your Site</span>
+                    <p className="text-slate-400 mt-1">Copy and paste this snippet right before the <code>&lt;/body&gt;</code> tag of your website or Shopify theme:</p>
+                    <div className="p-2.5 bg-slate-900 border border-slate-800 rounded font-mono text-[11px] text-purple-300 mt-2 select-all break-all">
+                      &lt;script src="https://autocloud-ai-p448.vercel.app/widget.js" data-team-id="bcd2b32a-e9f6-40f8-81fc-3f06ccbcbb46"&gt;&lt;/script&gt;
+                    </div>
+                  </div>
                 </div>
               )}
 
+              {/* SLACK GUIDE */}
+              {activeGuideTab === 'slack' && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-purple-400 font-bold text-sm">
+                    <span>👥</span> Slack App Setup (4 Simple Steps)
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 1: Create App & Permissions</span>
+                      <p className="text-slate-400 mt-1">Go to <b>api.slack.com/apps</b> → <b>Create App</b>. Under <b>OAuth & Permissions → Scopes</b>, add: <code>app_mention</code>, <code>chat:write</code>, and <code>im:history</code>.</p>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 2: Save Token in AutoCloud</span>
+                      <p className="text-slate-400 mt-1">Click <b>Install to Workspace</b> in Slack, copy your <b>Bot Token</b> (starts with <code>xoxb-</code>), paste it into AutoCloud, and save.</p>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 3: Add Webhook Request URL</span>
+                      <p className="text-slate-400 mt-1">In Slack, go to <b>Event Subscriptions</b> → turn <b>ON</b> → paste this link into <b>Request URL</b>:</p>
+                      <div className="p-2 bg-slate-900 border border-slate-800 rounded font-mono text-[11px] text-purple-300 mt-1 select-all break-all">
+                        https://autocloud-ai-p448.vercel.app/api/slack/events?teamId=bcd2b32a-e9f6-40f8-81fc-3f06ccbcbb46
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 4: Subscribe to Bot Events</span>
+                      <p className="text-slate-400 mt-1">On the same Event Subscriptions page, scroll down and add: <code>message.im</code> and <code>app_mention</code>.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* DISCORD GUIDE */}
               {activeGuideTab === 'discord' && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider">Discord Bot Setup</h4>
-                  <ol className="list-decimal pl-4 space-y-1.5">
-                    <li>Go to <b>discord.com/developers/applications</b> → <b>New Application</b>.</li>
-                    <li>Go to the <b>Bot</b> tab, reset token, and copy the <b>Bot Token</b>.</li>
-                    <li>Enable <b>Message Content Intent</b> under Privileged Gateway Intents.</li>
-                    <li>Under <b>OAuth2 → URL Generator</b>, select <code>bot</code>, check <code>Send Messages</code> and <code>Read Message History</code>, then open the link to invite the bot to your Discord server.</li>
-                    <li>Paste the token in AutoCloud under <b>Configure Bot → Discord</b> and click <b>⚡ Save & Activate Bot</b>.</li>
-                  </ol>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-purple-400 font-bold text-sm">
+                    <span>👾</span> Discord Bot Setup (3 Simple Steps)
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 1: Create Bot in Discord Portal</span>
+                      <p className="text-slate-400 mt-1">Go to <b>discord.com/developers/applications</b> → <b>New Application</b> → click <b>Bot</b> tab → click <b>Reset Token</b> to copy your bot token.</p>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 2: Enable Message Permission</span>
+                      <p className="text-slate-400 mt-1">On the same Bot page, scroll down and enable <b>Message Content Intent</b>.</p>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+                      <span className="font-semibold text-white">Step 3: Save in AutoCloud & Invite</span>
+                      <p className="text-slate-400 mt-1">Paste your Bot Token into AutoCloud and save. In Discord, use <b>OAuth2 URL Generator</b> (select <code>bot</code> + <code>Send Messages</code>) to invite the bot to your server.</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Footer */}
+            {/* Modal Footer */}
             <div className="p-3 bg-slate-950 border-t border-slate-800 flex justify-end">
               <button
                 type="button"
                 onClick={() => setShowGuideModal(false)}
-                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition"
               >
                 Close
               </button>

@@ -1,196 +1,198 @@
 (function () {
-  // 1. Get Instance ID from script tag
-  const scriptTag = document.currentScript || document.querySelector('script[data-instance-id]');
-  const instanceId = scriptTag ? scriptTag.getAttribute('data-instance-id') : null;
+  const currentScript = document.currentScript;
+  const teamId = currentScript ? (currentScript.getAttribute('data-team-id') || 'T0BQ21MN7FV') : 'T0BQ21MN7FV';
+  const backendUrl = currentScript ? new URL(currentScript.src).origin : 'https://autocloud-ai-p448.vercel.app';
 
-  if (!instanceId) {
-    console.error('AutoCloud AI Widget: Missing data-instance-id attribute.');
-    return;
+  // Persistent user session per browser
+  let sessionId = localStorage.getItem('autocloud_chat_session');
+  if (!sessionId) {
+    sessionId = 'web_' + Math.random().toString(36).substring(2, 12);
+    localStorage.setItem('autocloud_chat_session', sessionId);
   }
 
-  // 2. Inject CSS Styles
+  // Inject Styles
   const style = document.createElement('style');
   style.innerHTML = `
-    #autocloud-widget-container {
+    .ac-widget-btn {
       position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 999999;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    }
-    #autocloud-widget-button {
-      width: 56px;
-      height: 56px;
-      border-radius: 28px;
-      background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-      box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.5);
-      border: none;
-      cursor: pointer;
+      bottom: 24px;
+      right: 24px;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: #4f46e5;
+      color: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      cursor: pointer;
+      box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+      z-index: 999999;
+      transition: transform 0.2s ease, background 0.2s ease;
     }
-    #autocloud-widget-button:hover {
-      transform: scale(1.08);
-      box-shadow: 0 12px 30px -5px rgba(139, 92, 246, 0.7);
-    }
-    #autocloud-widget-window {
-      display: none;
-      position: absolute;
-      bottom: 70px;
-      right: 0;
-      width: 360px;
-      height: 520px;
-      background: #090d16;
+    .ac-widget-btn:hover { transform: scale(1.06); background: #4338ca; }
+    .ac-widget-window {
+      position: fixed;
+      bottom: 94px;
+      right: 24px;
+      width: 380px;
+      height: 540px;
+      max-height: calc(100vh - 120px);
+      background: #0f172a;
       border: 1px solid #1e293b;
-      border-radius: 16px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      border-radius: 18px;
+      display: none;
       flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      z-index: 999999;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       overflow: hidden;
     }
-    .autocloud-header {
-      background: #0f172a;
-      padding: 14px 16px;
-      border-bottom: 1px solid #1e293b;
+    .ac-header {
+      background: #1e293b;
+      padding: 16px;
+      color: #f8fafc;
+      font-weight: 600;
+      font-size: 15px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      color: white;
-      font-weight: 600;
-      font-size: 14px;
+      border-bottom: 1px solid #334155;
     }
-    .autocloud-body {
+    .ac-messages {
       flex: 1;
-      padding: 14px;
       overflow-y: auto;
+      padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      background: #030712;
+      gap: 12px;
     }
-    .autocloud-msg {
+    .ac-msg {
       max-width: 80%;
       padding: 10px 14px;
-      border-radius: 12px;
-      font-size: 13px;
-      line-height: 1.4;
-      word-wrap: break-word;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.45;
+      word-break: break-word;
     }
-    .autocloud-msg-user {
+    .ac-msg-user {
+      background: #4f46e5;
+      color: #fff;
       align-self: flex-end;
-      background: #7c3aed;
-      color: white;
       border-bottom-right-radius: 2px;
     }
-    .autocloud-msg-bot {
-      align-self: flex-start;
+    .ac-msg-bot {
       background: #1e293b;
       color: #e2e8f0;
+      align-self: flex-start;
       border-bottom-left-radius: 2px;
     }
-    .autocloud-footer {
+    .ac-input-container {
       padding: 12px;
       background: #0f172a;
       border-top: 1px solid #1e293b;
       display: flex;
       gap: 8px;
     }
-    .autocloud-input {
+    .ac-input {
       flex: 1;
-      background: #030712;
+      background: #1e293b;
       border: 1px solid #334155;
-      color: white;
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 13px;
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #fff;
+      font-size: 14px;
       outline: none;
     }
-    .autocloud-send {
-      background: #7c3aed;
-      color: white;
+    .ac-input:focus { border-color: #6366f1; }
+    .ac-send-btn {
+      background: #4f46e5;
       border: none;
-      padding: 8px 14px;
-      border-radius: 8px;
+      color: #fff;
+      padding: 0 16px;
+      border-radius: 10px;
       cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
+      font-weight: 500;
+      transition: background 0.2s;
     }
+    .ac-send-btn:hover { background: #4338ca; }
   `;
   document.head.appendChild(style);
 
-  // 3. Inject Widget DOM Elements
+  // Inject DOM Elements
   const container = document.createElement('div');
-  container.id = 'autocloud-widget-container';
   container.innerHTML = `
-    <div id="autocloud-widget-window">
-      <div class="autocloud-header">
-        <span>🤖 AI Assistant</span>
-        <button id="autocloud-close-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;">✕</button>
-      </div>
-      <div class="autocloud-body" id="autocloud-messages">
-        <div class="autocloud-msg autocloud-msg-bot">Hello! How can I help you today?</div>
-      </div>
-      <div class="autocloud-footer">
-        <input type="text" id="autocloud-input-field" class="autocloud-input" placeholder="Type a message..." />
-        <button id="autocloud-send-btn" class="autocloud-send">Send</button>
-      </div>
+    <div class="ac-widget-btn" id="ac-toggle" title="Chat with AutoCloud AI">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
     </div>
-    <button id="autocloud-widget-button">💬</button>
+    <div class="ac-widget-window" id="ac-window">
+      <div class="ac-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="display:inline-block;width:8px;height:8px;background:#22c55e;border-radius:50%;"></span>
+          <span>AutoCloud AI</span>
+        </div>
+        <span style="cursor:pointer;opacity:0.7;font-size:20px" id="ac-close">&times;</span>
+      </div>
+      <div class="ac-messages" id="ac-msgs">
+        <div class="ac-msg ac-msg-bot">Hello! How can I help you today?</div>
+      </div>
+      <form class="ac-input-container" id="ac-form">
+        <input class="ac-input" id="ac-input" placeholder="Ask anything..." autocomplete="off" />
+        <button class="ac-send-btn" type="submit">Send</button>
+      </form>
+    </div>
   `;
   document.body.appendChild(container);
 
-  // 4. Widget Interactivity & Messaging Logic
-  const button = document.getElementById('autocloud-widget-button');
-  const windowEl = document.getElementById('autocloud-widget-window');
-  const closeBtn = document.getElementById('autocloud-close-btn');
-  const sendBtn = document.getElementById('autocloud-send-btn');
-  const inputField = document.getElementById('autocloud-input-field');
-  const messagesBox = document.getElementById('autocloud-messages');
+  // Widget Logic
+  const toggleBtn = document.getElementById('ac-toggle');
+  const chatWindow = document.getElementById('ac-window');
+  const closeBtn = document.getElementById('ac-close');
+  const form = document.getElementById('ac-form');
+  const input = document.getElementById('ac-input');
+  const msgContainer = document.getElementById('ac-msgs');
 
-  button.onclick = () => {
-    windowEl.style.display = windowEl.style.display === 'flex' ? 'none' : 'flex';
-  };
-  closeBtn.onclick = () => {
-    windowEl.style.display = 'none';
-  };
-
-  async function sendMessage() {
-    const text = inputField.value.trim();
-    if (!text) return;
-
-    // Append user message UI
-    const userMsg = document.createElement('div');
-    userMsg.className = 'autocloud-msg autocloud-msg-user';
-    userMsg.textContent = text;
-    messagesBox.appendChild(userMsg);
-    inputField.value = '';
-    messagesBox.scrollTop = messagesBox.scrollHeight;
-
-    // Append typing indicator
-    const botMsg = document.createElement('div');
-    botMsg.className = 'autocloud-msg autocloud-msg-bot';
-    botMsg.textContent = 'Thinking...';
-    messagesBox.appendChild(botMsg);
-    messagesBox.scrollTop = messagesBox.scrollHeight;
-
-    try {
-      const res = await fetch('https://autocloud-ai-p448.vercel.app/api/widget/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceId, message: text }),
-      });
-      const data = await res.json();
-      botMsg.textContent = data.reply || 'Sorry, I could not process your request.';
-    } catch (err) {
-      botMsg.textContent = 'Connection error. Please try again.';
-    }
-    messagesBox.scrollTop = messagesBox.scrollHeight;
+  let isOpen = false;
+  function toggleChat() {
+    isOpen = !isOpen;
+    chatWindow.style.display = isOpen ? 'flex' : 'none';
+    if (isOpen) input.focus();
   }
 
-  sendBtn.onclick = sendMessage;
-  inputField.onkeypress = (e) => {
-    if (e.key === 'Enter') sendMessage();
+  toggleBtn.onclick = toggleChat;
+  closeBtn.onclick = toggleChat;
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+
+    // User message
+    const userBubble = document.createElement('div');
+    userBubble.className = 'ac-msg ac-msg-user';
+    userBubble.textContent = text;
+    msgContainer.appendChild(userBubble);
+    input.value = '';
+    msgContainer.scrollTop = msgContainer.scrollHeight;
+
+    // Bot Typing Indicator
+    const typingBubble = document.createElement('div');
+    typingBubble.className = 'ac-msg ac-msg-bot';
+    typingBubble.textContent = 'Thinking...';
+    msgContainer.appendChild(typingBubble);
+    msgContainer.scrollTop = msgContainer.scrollHeight;
+
+    try {
+      const res = await fetch(`${backendUrl}/api/widget/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, sessionId, message: text }),
+      });
+      const data = await res.json();
+      typingBubble.textContent = data.reply || 'Sorry, I could not process your request.';
+    } catch (err) {
+      typingBubble.textContent = 'Network error. Please try again.';
+    }
+    msgContainer.scrollTop = msgContainer.scrollHeight;
   };
 })();

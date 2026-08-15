@@ -11,7 +11,7 @@ interface DocItem {
 }
 
 export default function KnowledgeBasePage() {
-  const [teamId, setTeamId] = useState('T0BQ21MN7FV');
+  const [teamId, setTeamId] = useState('');
   const [docs, setDocs] = useState<DocItem[]>([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -19,6 +19,16 @@ export default function KnowledgeBasePage() {
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
 
+  // 1. Read ?teamId= from the URL query parameter when opened
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlTeamId = params.get('teamId') || 'T0BQ21MN7FV';
+      setTeamId(urlTeamId);
+    }
+  }, []);
+
+  // 2. Fetch documents for this specific bot
   const fetchDocs = async () => {
     if (!teamId.trim()) return;
     setLoading(true);
@@ -35,8 +45,11 @@ export default function KnowledgeBasePage() {
     }
   };
 
+  // 3. Automatically reload whenever teamId updates
   useEffect(() => {
-    fetchDocs();
+    if (teamId) {
+      fetchDocs();
+    }
   }, [teamId]);
 
   const handleAddDoc = async (e: React.FormEvent) => {

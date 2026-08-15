@@ -27,6 +27,10 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Integration Guides Modal State
+  const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
+  const [activeGuideTab, setActiveGuideTab] = useState<'telegram' | 'webchat' | 'slack' | 'discord'>('telegram');
+
   // Security Unlock Modal State
   const [unlockedInstances, setUnlockedInstances] = useState<Record<string, boolean>>({});
   const [authModalInstance, setAuthModalInstance] = useState<DeploymentInstance | null>(null);
@@ -479,11 +483,22 @@ const handleAutoScrape = async () => {
       {/* Configure Bot Modal */}
       {keyModalInstance && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-lg w-full text-white shadow-2xl max-h-[80vh] overflow-y-auto pb-12">
-            <h3 className="text-lg font-semibold mb-1">🤖 Configure AI Agent</h3>
-            <p className="text-xs text-slate-400 mb-4">
-              Choose your bot configuration type and connect your company details or website integration.
-            </p>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-lg w-full text-white shadow-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-1">🤖 Configure AI Agent</h3>
+                <p className="text-xs text-slate-400">
+                  Choose your bot configuration type and connect your company details or website integration.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGuideModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 text-xs font-semibold rounded-lg border border-slate-700 transition shrink-0"
+              >
+                📖 Channel Guides
+              </button>
+            </div>
 
             {/* BOT TYPE TOGGLE BUTTONS */}
             <div className="grid grid-cols-2 gap-2 mb-5">
@@ -821,6 +836,126 @@ const handleAutoScrape = async () => {
             </div>
           </div>
         </div>
+        </div>
+      )}
+      {/* INTEGRATION GUIDES MODAL */}
+      {showGuideModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  📖 Channel Connection Guides
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Follow the steps below to connect your AI agent in under 2 minutes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGuideModal(false)}
+                className="text-slate-400 hover:text-white text-base font-bold px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Channel Tabs */}
+            <div className="grid grid-cols-4 gap-1 p-2 bg-slate-950 border-b border-slate-800">
+              {[
+                { id: 'telegram', label: '✈️ Telegram' },
+                { id: 'webchat', label: '🌐 Web Chat' },
+                { id: 'slack', label: '👥 Slack' },
+                { id: 'discord', label: '👾 Discord' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveGuideTab(tab.id as any)}
+                  className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+                    activeGuideTab === tab.id
+                      ? 'bg-purple-600 text-white shadow'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Guide Steps */}
+            <div className="p-5 overflow-y-auto space-y-3 text-xs text-slate-300 leading-relaxed max-h-[60vh]">
+              {activeGuideTab === 'telegram' && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider">Telegram Setup</h4>
+                  <ol className="list-decimal pl-4 space-y-1.5">
+                    <li>Open Telegram and search for <b>@BotFather</b>.</li>
+                    <li>Send <code>/newbot</code> and follow the prompts to receive your <b>HTTP API Token</b>.</li>
+                    <li>In AutoCloud, paste the token into <b>Telegram Bot Token</b> and click <b>⚡ Save & Activate Bot</b>.</li>
+                    <li>Open this webhook activation URL in a new browser tab (replace <code>YOUR_BOT_TOKEN</code> with your actual token):
+                      <div className="p-2 bg-slate-950 border border-slate-800 rounded font-mono text-[11px] text-purple-400 mt-1 select-all break-all">
+                        https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook?url=https://autocloud-ai-p448.vercel.app/api/telegram-webhook?teamId=bcd2b32a-e9f6-40f8-81fc-3f06ccbcbb46
+                      </div>
+                    </li>
+                  </ol>
+                </div>
+              )}
+
+              {activeGuideTab === 'webchat' && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider">Web Chat Widget Setup</h4>
+                  <p>Paste this script tag directly before the closing <code>&lt;/body&gt;</code> tag of your website or store theme:</p>
+                  <div className="p-2.5 bg-slate-950 border border-slate-800 rounded font-mono text-[11px] text-purple-400 select-all break-all">
+                    &lt;script src="https://autocloud-ai-p448.vercel.app/widget.js" data-team-id="bcd2b32a-e9f6-40f8-81fc-3f06ccbcbb46"&gt;&lt;/script&gt;
+                  </div>
+                </div>
+              )}
+
+              {activeGuideTab === 'slack' && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider">Slack Bot Setup</h4>
+                  <ol className="list-decimal pl-4 space-y-1.5">
+                    <li>Visit <b>api.slack.com/apps</b> and click <b>Create New App</b> (From scratch).</li>
+                    <li>Under <b>OAuth & Permissions → Scopes</b>, add: <code>app_mention</code>, <code>chat:write</code>, and <code>im:history</code>.</li>
+                    <li>Click <b>Install to Workspace</b> and copy the <b>Bot User OAuth Token</b> (starts with <code>xoxb-</code>).</li>
+                    <li>Paste the token into AutoCloud under <b>Configure Bot → Slack</b> and click <b>⚡ Save & Activate Bot</b>.</li>
+                    <li>In Slack settings under <b>Event Subscriptions</b>, toggle <b>Enable Events to ON</b> and set Request URL:
+                      <div className="p-2 bg-slate-950 border border-slate-800 rounded font-mono text-[11px] text-purple-400 mt-1 select-all break-all">
+                        https://autocloud-ai-p448.vercel.app/api/slack/events?teamId=bcd2b32a-e9f6-40f8-81fc-3f06ccbcbb46
+                      </div>
+                    </li>
+                    <li>Under <b>Subscribe to bot events</b>, add <code>message.im</code> and <code>app_mention</code>.</li>
+                  </ol>
+                </div>
+              )}
+
+              {activeGuideTab === 'discord' && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider">Discord Bot Setup</h4>
+                  <ol className="list-decimal pl-4 space-y-1.5">
+                    <li>Go to <b>discord.com/developers/applications</b> → <b>New Application</b>.</li>
+                    <li>Go to the <b>Bot</b> tab, reset token, and copy the <b>Bot Token</b>.</li>
+                    <li>Enable <b>Message Content Intent</b> under Privileged Gateway Intents.</li>
+                    <li>Under <b>OAuth2 → URL Generator</b>, select <code>bot</code>, check <code>Send Messages</code> and <code>Read Message History</code>, then open the link to invite the bot to your Discord server.</li>
+                    <li>Paste the token in AutoCloud under <b>Configure Bot → Discord</b> and click <b>⚡ Save & Activate Bot</b>.</li>
+                  </ol>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowGuideModal(false)}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

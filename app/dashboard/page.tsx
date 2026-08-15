@@ -557,31 +557,7 @@ const handleAutoScrape = async () => {
                 </div>
               )}
 
-              {/* 2. WHATSAPP INPUTS */}
-              {selectedChannel === 'whatsapp' && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[11px] text-slate-400 font-medium">WhatsApp Phone Number ID:</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 10928374829301"
-                      value={whatsappPhoneId}
-                      onChange={(e) => setWhatsappPhoneId(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-400 font-medium">Meta Cloud System User Access Token:</label>
-                    <input
-                      type="password"
-                      placeholder="EAAG..."
-                      value={whatsappToken}
-                      onChange={(e) => setWhatsappToken(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-                </div>
-              )}
+              
 
               {/* 3. WEBSITE CHAT EMBED SCRIPT */}
               {selectedChannel === 'webchat' && (

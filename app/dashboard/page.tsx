@@ -526,7 +526,7 @@ const handleAutoScrape = async () => {
                   { id: 'webchat', label: '🌐 Web Chat' },
                   { id: 'discord', label: '👾 Discord' },
                   { id: 'slack', label: '💼 Slack' },
-                  { id: 'messenger', label: '📸 Meta DM' },
+      
                 ].map((ch) => (
                   <button
                     key={ch.id}
@@ -654,20 +654,21 @@ const handleAutoScrape = async () => {
                 </div>
               )}
 
-              {/* 6. MESSENGER / INSTAGRAM INPUT */}
-              {selectedChannel === 'messenger' && (
-                <div className="space-y-1">
-                  <label className="block text-[11px] text-slate-400 font-medium">Meta Page / Instagram Access Token:</label>
-                  <input
-                    type="password"
-                    placeholder="EAA..."
-                    value={messengerPageToken}
-                    onChange={(e) => setMessengerPageToken(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              )}
-            </div>
+              {/* 6. MESSENGER / INSTAGRAM INPUT (Paused for initial launch) */}
+{/* 
+{selectedChannel === 'messenger' && (
+  <div className="space-y-1">
+    <label className="block text-[11px] text-slate-400 font-medium">Meta Page / Instagram Access Token:</label>
+    <input
+      type="password"
+      placeholder="EAA..."
+      value={messengerPageToken}
+      onChange={(e) => setMessengerPageToken(e.target.value)}
+      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none"
+    />
+  </div>
+)} 
+*/}
 
             {/* E-COMMERCE SPECIFIC INPUTS */}
             {botType === 'ecommerce' && (

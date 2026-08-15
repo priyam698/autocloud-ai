@@ -522,7 +522,7 @@ const handleAutoScrape = async () => {
               <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-950 border border-slate-800 rounded-xl mb-4">
                 {[
                   { id: 'telegram', label: '✈️ Telegram' },
-                  { id: 'whatsapp', label: '💬 WhatsApp' },
+                  
                   { id: 'webchat', label: '🌐 Web Chat' },
                   { id: 'discord', label: '👾 Discord' },
                   { id: 'slack', label: '💼 Slack' },

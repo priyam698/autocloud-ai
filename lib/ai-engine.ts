@@ -6,7 +6,7 @@ const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supaba
 
 interface GenerateAIParams {
   teamId: string;
-  platform: 'slack' | 'telegram' | 'web' | 'whatsapp';
+  platform: 'slack' | 'telegram' | 'web' | 'whatsapp' | 'meta_dm' | 'discord';
   sessionId: string;
   userPrompt: string;
   systemPersona?: string;

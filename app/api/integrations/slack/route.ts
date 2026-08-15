@@ -7,26 +7,57 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: Request) {
   try {
-    const { slackToken, teamId } = await req.json();
+    const { slackToken } = await req.json();
 
-    if (!slackToken) {
-      return NextResponse.json({ error: 'Token is required' }, { status: 400 });
+    if (!slackToken || !slackToken.startsWith('xoxb-')) {
+      return NextResponse.json(
+        { error: 'Please provide a valid Bot User OAuth Token (starts with xoxb-)' },
+        { status: 400 }
+      );
     }
 
-    const targetTeam = teamId || 'default_team';
+    // 1. Verify token with Slack and auto-extract workspace details
+    const authTestRes = await fetch('https://slack.com/api/auth.test', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${slackToken.trim()}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-    // Upsert with explicit onConflict matching to handle existing teams cleanly
-    const { error } = await supabase
+    const authData = await authTestRes.json();
+
+    if (!authData.ok) {
+      return NextResponse.json(
+        { error: `Slack validation failed: ${authData.error}. Check token permissions.` },
+        { status: 400 }
+      );
+    }
+
+    const { team_id, team, user_id: bot_user_id } = authData;
+
+    // 2. Save or update customer configuration in Supabase
+    const { error: dbError } = await supabase
       .from('integrations')
       .upsert(
-        { team_id: targetTeam, slack_token: slackToken },
+        {
+          team_id: team_id,
+          team_name: team,
+          bot_user_id: bot_user_id,
+          slack_token: slackToken.trim(),
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: 'team_id' }
       );
 
-    if (error) throw error;
+    if (dbError) throw dbError;
 
-    return NextResponse.json({ success: true, message: 'Slack connected successfully!' });
+    return NextResponse.json({
+      success: true,
+      message: `Connected successfully to workspace: ${team}!`,
+    });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Slack integration error:', err);
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }

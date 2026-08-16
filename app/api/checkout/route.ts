@@ -8,8 +8,16 @@ const supabase = createClient(
 );
 
 const TEMPLATE_NAMES: Record<string, string> = {
+  telegram: 'Telegram AI Bot',
+  'telegram-ai-bot': 'Telegram AI Bot',
+  slack: 'Slack AI Bot',
+  'slack-ai-bot': 'Slack AI Bot',
+  discord: 'Discord AI Bot',
+  'discord-ai-bot': 'Discord AI Bot',
+  webchat: 'Web Chat Widget',
+  'webchat-ai-bot': 'Web Chat Widget',
+  // Legacy fallbacks
   'n8n-workflow': 'n8n Workflow Automation',
-  'telegram-ai-bot': 'Telegram AI Bot Runner',
   'langchain-runner': 'LangChain & CrewAI Runner',
 };
 
@@ -18,11 +26,11 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { templateId } = body;
 
-    const selectedTemplate = templateId || 'telegram-ai-bot';
-    const instanceName = TEMPLATE_NAMES[selectedTemplate] || 'Telegram AI Bot Runner';
+    const selectedTemplate = (templateId || 'telegram').toLowerCase();
+    const instanceName = TEMPLATE_NAMES[selectedTemplate] || 'Universal AI Bot';
     const accessPassword = crypto.randomBytes(6).toString('hex');
 
-    // 1. Create exactly 1 instance record in Supabase right away
+    // 1. Create exactly 1 instance record in Supabase right away with dynamic name
     const { data: instanceData, error: dbError } = await supabase
       .from('deployments')
       .insert([
@@ -61,9 +69,9 @@ export async function POST(req: Request) {
     const response = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
       method: 'POST',
       headers: {
-        'Accept': 'application/vnd.api+json',
+        Accept: 'application/vnd.api+json',
         'Content-Type': 'application/vnd.api+json',
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         data: {
@@ -72,6 +80,7 @@ export async function POST(req: Request) {
             checkout_data: {
               custom: {
                 instance_id: instanceData.id,
+                template_id: selectedTemplate,
               },
             },
           },

@@ -48,20 +48,21 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Strict system prompt
+    // 2. Strict system prompt with your custom email
     const systemPrompt = `
 You are the official customer support AI agent for "${botName}".
 
 RULES:
 1. Answer in 1 to 2 concise, clear, and professional sentences.
 2. PRICING: Every bot (Telegram, Slack, Discord, or Web Chat) is a flat $12/month per instance on AutoCloud AI.
-3. OUT-OF-SCOPE: If asked about topics outside AutoCloud AI hosting, politely state: "I am only able to assist with questions related to AutoCloud AI services and bot hosting."
+3. SUPPORT & CONTACT: If the user asks for support, contact details, or further assistance, always direct them to email directly at priyamrana069@gmail.com.
+4. OUT-OF-SCOPE: If asked about topics outside AutoCloud AI hosting, politely state: "I am only able to assist with questions related to AutoCloud AI services and bot hosting. For further support, contact priyamrana069@gmail.com."
 
 KNOWLEDGE BASE:
 ${businessContext}
 `.trim();
 
-    // 3. Attempt Gemini API (Universal Payload Format)
+    // 3. Attempt Gemini API
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY1;
 
     if (geminiKey) {
@@ -96,13 +97,12 @@ ${businessContext}
         if (geminiReply) {
           return NextResponse.json({ reply: geminiReply }, { headers: corsHeaders });
         }
-        console.error('Gemini API Error Payload:', geminiData);
       } catch (err) {
         console.error('Gemini Fetch Failed:', err);
       }
     }
 
-    // 4. Fallback: Ultra-fast Groq API (if Gemini key has quota limits)
+    // 4. Fallback to Groq API
     const groqKey = process.env.GROQ_API_KEY;
     if (groqKey) {
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -131,13 +131,13 @@ ${businessContext}
     }
 
     return NextResponse.json(
-      { reply: 'Hello! I am AutoCloud AI support. How can I help you today?' },
+      { reply: 'For further support, please reach out to us at priyamrana069@gmail.com.' },
       { headers: corsHeaders }
     );
   } catch (err: any) {
     console.error('Chat Engine Error:', err);
     return NextResponse.json(
-      { reply: 'AutoCloud AI bots are hosted 24/7 for $12/month per bot instance.' },
+      { reply: 'For support, please contact priyamrana069@gmail.com.' },
       { headers: corsHeaders }
     );
   }

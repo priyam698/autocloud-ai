@@ -153,7 +153,11 @@ export default function Dashboard() {
     setInputPassword('');
   };
 const handleScrapeWebsite = async () => {
-    if (!websiteUrl) return;
+    if (!websiteUrl || !keyModalInstance?.id) {
+      setScrapeStatus('Please provide both a valid URL and ensure an instance is selected.');
+      return;
+    }
+
     try {
       setIsScraping(true);
       setScrapeStatus('Scraping website content...');
@@ -161,21 +165,27 @@ const handleScrapeWebsite = async () => {
       const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: websiteUrl }),
+        body: JSON.stringify({
+          instanceId: keyModalInstance.id,
+          url: websiteUrl,
+          websiteUrl: websiteUrl,
+        }),
       });
 
       const data = await res.json();
 
-      if (res.ok && (data.text || data.content || data.scrapedContent)) {
+      if (res.ok && (data.text || data.content || data.scrapedContent || data.success)) {
         const content = data.text || data.content || data.scrapedContent;
-        setBusinessInfo((prev) => (prev ? `${prev}\n\n--- Scraped Knowledge ---\n${content}` : content));
+        if (content) {
+          setBusinessInfo((prev) => (prev ? `${prev}\n\n--- Scraped Knowledge ---\n${content}` : content));
+        }
         setScrapeStatus('✓ Scraped and synced to business knowledge!');
       } else {
-        setScrapeStatus(data.error || '✓ Scrape completed.');
+        setScrapeStatus(data.error || '✕ Failed to scrape website.');
       }
     } catch (err: any) {
       console.error('Scrape failed:', err);
-      setScrapeStatus('✕ Failed to scrape website.');
+      setScrapeStatus('✕ Error connecting to scrape service.');
     } finally {
       setIsScraping(false);
     }

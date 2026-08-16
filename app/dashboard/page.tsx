@@ -57,6 +57,15 @@ export default function Dashboard() {
   const [isScraping, setIsScraping] = useState<boolean>(false);
   const [scrapeStatus, setScrapeStatus] = useState<string>('');
 
+  // Helper to determine the channel from the instance data
+  const getChannelFromInstance = (instance: any): 'telegram' | 'slack' | 'discord' | 'webchat' => {
+    const raw = `${instance?.template_id || ''} ${instance?.name || ''} ${instance?.template || ''}`.toLowerCase();
+    if (raw.includes('slack')) return 'slack';
+    if (raw.includes('discord')) return 'discord';
+    if (raw.includes('web') || raw.includes('widget')) return 'webchat';
+    return 'telegram';
+  };
+
   // Crew AI Runner Test State
   const [crewTaskPrompt, setCrewTaskPrompt] = useState<string>('');
   const [crewUserApiKey, setCrewUserApiKey] = useState<string>('');
@@ -143,7 +152,34 @@ export default function Dashboard() {
     setAuthModalInstance(null);
     setInputPassword('');
   };
+const handleScrapeWebsite = async () => {
+    if (!websiteUrl) return;
+    try {
+      setIsScraping(true);
+      setScrapeStatus('Scraping website content...');
 
+      const res = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: websiteUrl }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && (data.text || data.content || data.scrapedContent)) {
+        const content = data.text || data.content || data.scrapedContent;
+        setBusinessInfo((prev) => (prev ? `${prev}\n\n--- Scraped Knowledge ---\n${content}` : content));
+        setScrapeStatus('✓ Scraped and synced to business knowledge!');
+      } else {
+        setScrapeStatus(data.error || '✓ Scrape completed.');
+      }
+    } catch (err: any) {
+      console.error('Scrape failed:', err);
+      setScrapeStatus('✕ Failed to scrape website.');
+    } finally {
+      setIsScraping(false);
+    }
+  };
   const handleSaveApiKey = async () => {
     if (!keyModalInstance) return;
     setIsSavingKey(true);
@@ -415,6 +451,7 @@ const handleAutoScrape = async () => {
                       <button
                         onClick={() => {
                           setKeyModalInstance(instance);
+                          setSelectedChannel(getChannelFromInstance(instance));
                           setBusinessInfo(instance.custom_context || '');
                           setWebsiteUrl(instance.website_url || '');
                           setStoreApiKey(instance.api_key || '');
@@ -529,315 +566,184 @@ const handleAutoScrape = async () => {
               </button>
             </div>
 
-            {/* 🌐 OMNICHANNEL CHANNEL SELECTOR */}
-            <div className="mb-5 text-left">
-              <label className="block text-xs font-semibold text-slate-300 mb-2">
-                Select Integration Channel:
-              </label>
-              <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-950 border border-slate-800 rounded-xl mb-4">
-                {[
-                  { id: 'telegram', label: '✈️ Telegram' },
-                  
-                  { id: 'webchat', label: '🌐 Web Chat' },
-                  { id: 'discord', label: '👾 Discord' },
-                  { id: 'slack', label: '💼 Slack' },
-      
-                ].map((ch) => (
-                  <button
-                    key={ch.id}
-                    type="button"
-                    onClick={() => setSelectedChannel(ch.id as any)}
-                    className={`py-2 px-2 rounded-lg text-xs font-medium transition-all ${
-                      selectedChannel === ch.id
-                        ? 'bg-purple-600 text-white font-semibold shadow'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                    }`}
-                  >
-                    {ch.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* 1. TELEGRAM INPUT */}
-              {selectedChannel === 'telegram' && (
-                <div className="space-y-1">
-                  <label className="block text-[11px] text-slate-400 font-medium">Telegram Bot Token (from @BotFather):</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 8933256473:AAHoCwrKmPq..."
-                    value={userTelegramToken}
-                    onChange={(e) => setUserTelegramToken(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              )}
-
-              
-
-              {/* 3. WEBSITE CHAT EMBED SCRIPT */}
-              {selectedChannel === 'webchat' && (
-                <div className="space-y-2 bg-slate-950 p-3.5 border border-purple-500/30 rounded-xl">
-                  <p className="text-xs text-purple-300 font-semibold">Embed AI Chat on Any Website:</p>
-                  <p className="text-[11px] text-slate-400">Copy and paste this script tag right before the closing <code>&lt;/body&gt;</code> tag on your website:</p>
-                  <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
-                    <code className="text-[10px] font-mono text-purple-300 select-all">
-                      {`<script src="https://autocloud-ai-p448.vercel.app/widget.js" data-instance-id="${keyModalInstance.id}"></script>`}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(`<script src="https://autocloud-ai-p448.vercel.app/widget.js" data-instance-id="${keyModalInstance.id}"></script>`);
-                        alert('📋 Web Chat embed code copied to clipboard!');
-                      }}
-                      className="text-[10px] bg-purple-600/40 text-purple-200 px-2.5 py-1 rounded hover:bg-purple-600/60 font-medium ml-2 shrink-0"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* 4. DISCORD INPUT */}
-      {selectedChannel === 'discord' && (
-        <div className="space-y-3 text-left">
-          <div>
-            <label className="block text-[11px] text-slate-400 font-medium mb-1">
-              Discord Bot Token (Developer Portal)
+           {/* ACTIVE CHANNEL BADGE (LOCKED TO THIS BOT) */}
+          <div className="mb-4 text-left">
+            <label className="block text-xs font-semibold text-slate-400 mb-2">
+              Active Integration Channel:
             </label>
-            <input
-              type="password"
-              placeholder="MTAy..."
-              value={discordToken}
-              onChange={(e) => setDiscordToken(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none"
-            />
+            <div className="flex items-center">
+              {getChannelFromInstance(keyModalInstance) === 'telegram' && (
+                <div className="px-4 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 bg-purple-600/20 border-purple-500/50 text-purple-300">
+                  <span className="text-base">✈️</span>
+                  <span>Telegram AI Bot</span>
+                  <span className="ml-2 text-[10px] bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700 text-slate-300">
+                    Connected Instance
+                  </span>
+                </div>
+              )}
+              {getChannelFromInstance(keyModalInstance) === 'slack' && (
+                <div className="px-4 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 bg-emerald-600/20 border-emerald-500/50 text-emerald-300">
+                  <span className="text-base">💼</span>
+                  <span>Slack AI Bot</span>
+                  <span className="ml-2 text-[10px] bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700 text-slate-300">
+                    Connected Instance
+                  </span>
+                </div>
+              )}
+              {getChannelFromInstance(keyModalInstance) === 'discord' && (
+                <div className="px-4 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 bg-indigo-600/20 border-indigo-500/50 text-indigo-300">
+                  <span className="text-base">👾</span>
+                  <span>Discord AI Bot</span>
+                  <span className="ml-2 text-[10px] bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700 text-slate-300">
+                    Connected Instance
+                  </span>
+                </div>
+              )}
+              {getChannelFromInstance(keyModalInstance) === 'webchat' && (
+                <div className="px-4 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 bg-blue-600/20 border-blue-500/50 text-blue-300">
+                  <span className="text-base">🌐</span>
+                  <span>Web Chat Widget</span>
+                  <span className="ml-2 text-[10px] bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700 text-slate-300">
+                    Connected Instance
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div>
-            <label className="block text-[11px] text-slate-400 font-medium mb-1">
-              Discord Application Public Key
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. 1a2b3c4d5e6f..."
-              value={discordPublicKey}
-              onChange={(e) => setDiscordPublicKey(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none"
-            />
-            <span className="text-[10px] text-slate-500 block mt-1">
-              Found under Discord Developer Portal &gt; General Information.
-            </span>
-          </div>
-        </div>
-      )}
-
-              {/* 5. SLACK INPUT */}
-              {selectedChannel === 'slack' && (
-                <div className="space-y-1">
-                  <label className="block text-[11px] text-slate-400 font-medium">Slack Bot User OAuth Token (xoxb-...):</label>
-                  <input
-                    type="password"
-                    placeholder="xoxb-..."
-                    value={slackToken}
-                    onChange={(e) => setSlackToken(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              )}
-
-
-            {/* E-COMMERCE SPECIFIC INPUTS */}
-            {botType === 'ecommerce' && (
-              <div className="mb-4 space-y-3 bg-purple-950/30 border border-purple-500/20 p-3 rounded-lg text-left">
-                <h4 className="text-xs font-bold text-purple-300">
-                  🔗 Company Website & API Integration
-                </h4>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                    Company Website / API Endpoint URL
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="https://yourcompany.com/api/v1/orders"
-                    value={websiteUrl}
-                    onChange={(e) => setWebsiteUrl(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                    Store API Secret / Auth Key
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="sk_live_your_secret_key"
-                    value={storeApiKey}
-                    onChange={(e) => setStoreApiKey(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-                  />
-                </div>
-                <div className="text-[10px] text-slate-400 bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono">
-  <div className="flex justify-between items-center mb-1">
-    <strong className="text-purple-300">⚡ Sales & Update Webhook Endpoint:</strong>
-    <button
-      type="button"
-      onClick={() => {
-        navigator.clipboard.writeText('https://autocloud-ai-p448.vercel.app/api/broadcast/notify');
-        alert('📋 Webhook URL copied to clipboard!');
-      }}
-      className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/30 px-2 py-0.5 rounded text-[9px]"
-    >
-      Copy URL
-    </button>
-  </div>
-  <input
-    type="text"
-    readOnly
-    value="https://autocloud-ai-p448.vercel.app/api/broadcast/notify"
-    className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-purple-400 text-[10px] font-mono cursor-pointer select-all focus:outline-none"
-  />
-  <span className="text-slate-500 block mt-1">
-    (Buyers copy this URL into their store backend to automatically trigger sales alerts in Telegram)
-  </span>
-</div>
-              </div>
-            )}
-
-            {/* Business Knowledge Base Input */}
+          {/* DYNAMIC CREDENTIAL INPUT BASED ON INSTANCE */}
+          {getChannelFromInstance(keyModalInstance) === 'telegram' && (
             <div className="mb-4 text-left">
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                📄 Business Knowledge Base & Rules
+              <label className="block text-xs font-medium text-slate-400 mb-1">
+                Telegram Bot Token (from @BotFather):
               </label>
-              <textarea
-                rows={6}
-                value={businessInfo}
-                onChange={(e) => setBusinessInfo(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"
+              <input
+                type="text"
+                value={userTelegramToken}
+                onChange={(e) => setUserTelegramToken(e.target.value)}
+                placeholder="e.g. 8933256473:AAHoCwrKmPq..."
+                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 font-mono"
               />
             </div>
-           {/* 🌐 Auto-Train AI from Website URL */}
-<div className="mb-4 text-left p-3.5 bg-slate-900/80 border border-slate-800 rounded-xl">
-  <label className="block text-xs font-semibold text-slate-300 mb-1">
-    🌐 Auto-Train AI from Website URL
-  </label>
-  <p className="text-[11px] text-slate-400 mb-2">
-    Enter customer website link to scrape FAQs, products, and support details automatically.
-  </p>
-  <div className="flex gap-2">
-    <input
-      type="url"
-      placeholder="https://example.com"
-      value={websiteUrl}
-      onChange={(e) => setWebsiteUrl(e.target.value)}
-      className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-    />
-    <button
-      type="button"
-      onClick={handleAutoScrape}
-      disabled={isScraping}
-      className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 text-white text-xs font-medium rounded-lg transition-colors whitespace-nowrap"
-    >
-      {isScraping ? 'Scraping...' : '⚡ Auto-Scrape'}
-    </button>
-  </div>
-  {scrapeStatus && (
-    <p className="mt-2 text-[11px] text-purple-300 font-mono">
-      {scrapeStatus}
-    </p>
-  )}
-</div>
-{/* 🚀 LIVE CREW TASK RUNNER TESTER */}
-            <div className="mt-6 pt-5 border-t border-slate-800 text-left">
-              <h4 className="text-xs font-bold text-purple-300 mb-2 flex items-center gap-1.5">
-                🚀 Test LangChain & CrewAI Execution
-              </h4>
-              <div className="space-y-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
-  Groq API Key (Optional — uses Vercel GROQ_API_KEY by default):
-</label>
-<input
-  type="password"
-  placeholder="gsk_..."
-  value={crewUserApiKey}
-  onChange={(e) => setCrewUserApiKey(e.target.value)}
-  className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-/>
-                </div>
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">
-                    Task Prompt / Agent Goal:
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="e.g. Summarize our customer support escalation guidelines and draft a sample response."
-                    value={crewTaskPrompt}
-                    onChange={(e) => setCrewTaskPrompt(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRunCrewTask}
-                  disabled={isExecutingCrew || !crewTaskPrompt.trim()}
-                  className="w-full py-2 bg-purple-600/30 border border-purple-500/40 hover:bg-purple-600/50 disabled:opacity-50 text-purple-200 text-xs font-semibold rounded-lg transition-all"
-                >
-                  {isExecutingCrew ? '⚡ Running Crew Agents...' : '▶ Execute Agent Task'}
-                </button>
+          )}
 
-                {crewResult && (
-                  <div className="mt-3 p-3 bg-slate-900 border border-purple-500/30 rounded-lg">
-                    <p className="text-[10px] text-purple-300 font-bold mb-1">Agent Output:</p>
-                    <pre className="text-[11px] text-slate-200 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
-                      {crewResult}
-                    </pre>
-                  </div>
-                )}
+          {getChannelFromInstance(keyModalInstance) === 'slack' && (
+            <div className="mb-4 text-left">
+              <label className="block text-xs font-medium text-slate-400 mb-1">
+                Slack Bot User OAuth Token (starts with xoxb-):
+              </label>
+              <input
+                type="text"
+                value={slackToken}
+                onChange={(e) => setSlackToken(e.target.value)}
+                placeholder="xoxb-your-slack-bot-token..."
+                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
+          )}
+
+          {getChannelFromInstance(keyModalInstance) === 'discord' && (
+            <div className="mb-4 text-left space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Discord Bot Token:
+                </label>
+                <input
+                  type="text"
+                  value={discordToken}
+                  onChange={(e) => setDiscordToken(e.target.value)}
+                  placeholder="Paste your Discord Bot Token..."
+                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Discord Public Key (from Developer Portal):
+                </label>
+                <input
+                  type="text"
+                  value={discordPublicKey}
+                  onChange={(e) => setDiscordPublicKey(e.target.value)}
+                  placeholder="Paste Discord Public Key..."
+                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-mono"
+                />
               </div>
             </div>
-            {/* Discord /ask Command Guide Notice */}
-          <div className="mb-4 p-3 bg-blue-950/50 border border-blue-500/30 rounded-lg flex items-start gap-3 text-xs text-blue-200">
-            <span className="text-base">💡</span>
-            <div>
-              <strong className="text-white block font-medium mb-0.5">How your users talk to the bot in Discord:</strong>
-              <p className="text-blue-300">
-                Discord webhook bots require slash commands. Tell your server members to type <code className="bg-blue-900/80 px-1.5 py-0.5 rounded text-blue-100 font-mono font-bold">/ask</code> in any channel to start chatting!
-              </p>
+          )}
+
+          {getChannelFromInstance(keyModalInstance) === 'webchat' && (
+            <div className="mb-4 text-left">
+              <label className="block text-xs font-medium text-slate-400 mb-1">
+                Embeddable Web Chat Script Tag:
+              </label>
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg font-mono text-[11px] text-blue-300 select-all break-all">
+                {`<script src="https://autocloud-ai-p448.vercel.app/widget.js" data-team-id="${keyModalInstance?.id}"></script>`}
+              </div>
             </div>
+          )}
+
+          {/* BUSINESS KNOWLEDGE BASE */}
+          <div className="mb-4 text-left">
+            <label className="block text-xs font-semibold text-slate-400 mb-1">
+              📄 Business Knowledge Base & Rules:
+            </label>
+            <textarea
+              rows={4}
+              value={businessInfo}
+              onChange={(e) => setBusinessInfo(e.target.value)}
+              placeholder="Enter your business background, pricing, FAQs, and bot behavior rules..."
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 font-sans"
+            />
           </div>
-          {/* Bot-Specific Knowledge Base Link */}
-          <div className="pt-3 pb-2 border-t border-slate-800 my-4">
-            <Link
-              href={`/dashboard/knowledge?teamId=${keyModalInstance?.id || 'default'}`}
-              target="_blank"
-              className="w-full py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition"
+
+          {/* AUTO-TRAIN AI FROM WEBSITE URL */}
+          <div className="mb-4 text-left p-3 bg-slate-950 border border-slate-800 rounded-xl">
+            <label className="block text-xs font-semibold text-purple-300 mb-1">
+              🌐 Auto-Train AI from Website URL
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                placeholder="https://yourcompany.com"
+                className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500"
+              />
+              <button
+                type="button"
+                onClick={handleScrapeWebsite}
+                disabled={isScraping || !websiteUrl}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition shrink-0"
+              >
+                {isScraping ? 'Scraping...' : 'Auto-Scrape'}
+              </button>
+            </div>
+            {scrapeStatus && (
+              <p className="text-[11px] text-slate-400 mt-2">{scrapeStatus}</p>
+            )}
+          </div>
+
+          {/* MODAL FOOTER */}
+          <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setKeyModalInstance(null)}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition"
             >
-              <span>📚</span>
-              <span>Open Knowledge Base & Training for this Bot</span>
-              <span className="text-[10px] opacity-70">↗</span>
-            </Link>
-          </div>
-            <div className="flex gap-2 justify-end mt-6">
-              <button
-                type="button"
-                onClick={() => setKeyModalInstance(null)}
-                className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveApiKey}
-                disabled={isSavingKey}
-                className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold rounded-lg transition-all flex items-center gap-1.5"
-              >
-                {isSavingKey ? 'Activating Webhook...' : '⚡ Save & Activate Bot'}
-              </button>
-            </div>
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveApiKey}
+              disabled={isSavingKey}
+              className="px-5 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition flex items-center gap-2 shadow-lg shadow-purple-600/20"
+            >
+              {isSavingKey ? 'Activating Webhook...' : '⚡ Save & Activate Bot'}
+            </button>
           </div>
         </div>
-        </div>
-      )}
+      </div>
+    )}
       {/* INTEGRATION GUIDES MODAL */}
       {showGuideModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">

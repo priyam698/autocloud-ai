@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,7 +28,16 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-screen w-full bg-[#080c14] text-slate-100 flex flex-col">{children}</body>
+      <body className="min-h-screen w-full bg-[#080c14] text-slate-100 flex flex-col">
+        {children}
+
+        {/* Live Web Chat Widget */}
+        <Script
+          src="https://autocloud-ai-p448.vercel.app/widget.js"
+          data-team-id="aa608971-f7bb-4fc3-aa64-28cc306718c0"
+          strategy="afterInteractive"
+        />
+      </body>
     </html>
   );
 }

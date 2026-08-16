@@ -371,12 +371,17 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            <a
-              href="/dashboard"
-              className="w-full py-2.5 bg-slate-800 hover:bg-purple-600 text-white font-semibold rounded-xl text-xs text-center transition duration-200"
+            <button
+              onClick={() => handleDeploy('telegram')}
+              disabled={loadingId === 'telegram'}
+              className="w-full py-2.5 bg-slate-800 hover:bg-purple-600 disabled:opacity-50 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition duration-200"
             >
-              Deploy Telegram Bot →
-            </a>
+              {loadingId === 'telegram' ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                'Deploy Telegram Bot →'
+              )}
+            </button>
           </div>
 
           {/* 2. SLACK BOT */}
@@ -404,12 +409,17 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            <a
-              href="/dashboard"
-              className="w-full py-2.5 bg-slate-800 hover:bg-purple-600 text-white font-semibold rounded-xl text-xs text-center transition duration-200"
+            <button
+              onClick={() => handleDeploy('slack')}
+              disabled={loadingId === 'slack'}
+              className="w-full py-2.5 bg-slate-800 hover:bg-purple-600 disabled:opacity-50 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition duration-200"
             >
-              Deploy Slack Bot →
-            </a>
+              {loadingId === 'slack' ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                'Deploy Slack Bot →'
+              )}
+            </button>
           </div>
 
           {/* 3. DISCORD BOT */}
@@ -437,12 +447,17 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            <a
-              href="/dashboard"
-              className="w-full py-2.5 bg-slate-800 hover:bg-purple-600 text-white font-semibold rounded-xl text-xs text-center transition duration-200"
+            <button
+              onClick={() => handleDeploy('discord')}
+              disabled={loadingId === 'discord'}
+              className="w-full py-2.5 bg-slate-800 hover:bg-purple-600 disabled:opacity-50 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition duration-200"
             >
-              Deploy Discord Bot →
-            </a>
+              {loadingId === 'discord' ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                'Deploy Discord Bot →'
+              )}
+            </button>
           </div>
 
           {/* 4. WEB CHAT WIDGET */}
@@ -470,15 +485,20 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            <a
-              href="/dashboard"
-              className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl text-xs text-center transition duration-200 shadow-lg shadow-purple-600/20"
+            <button
+              onClick={() => handleDeploy('webchat')}
+              disabled={loadingId === 'webchat'}
+              className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition duration-200 shadow-lg shadow-purple-600/20"
             >
-              Deploy Web Widget →
-            </a>
+              {loadingId === 'webchat' ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                'Deploy Web Widget →'
+              )}
+            </button>
           </div>
 
-        </div>
+        </div>        
         </section>
       </main>
 

@@ -6,65 +6,87 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-const TELEGRAM_TOKEN =
-  process.env.TELEGRAM_SUPPORT_BOT_TOKEN ||
-  process.env.TELEGRAM_BOT_TOKEN ||
-  '8933256473:AAHoCwrKmPqdvsJf2gzuFFCc04usvF7E4vc';
-
 export async function POST(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const instanceId = searchParams.get('instanceId') || searchParams.get('teamId');
+
     const update = await req.json().catch(() => null);
+    if (!update) return NextResponse.json({ ok: true });
 
-    if (!update) {
+    const msg = update.message || update.edited_message || update.channel_post;
+    if (!msg || !msg.text) return NextResponse.json({ ok: true });
+
+    const chatId = msg.chat.id;
+    let userText = msg.text.trim();
+
+    // 1. Clean command triggers (/start, bot mentions)
+    userText = userText.replace(/^\/start(@\w+)?/i, '').replace(/@\w+/g, '').trim();
+
+    // 2. Dynamically fetch this specific customer's bot token and knowledge base
+    let query = supabase.from('deployments').select('*');
+    if (instanceId) {
+      query = query.eq('id', instanceId);
+    } else {
+      query = query.or('template_id.eq.telegram,name.ilike.%telegram%');
+    }
+
+    const { data: deployment, error: dbError } = await query.maybeSingle();
+
+    if (dbError || !deployment) {
+      console.error('[Webhook] Could not find deployment for instanceId:', instanceId);
       return NextResponse.json({ ok: true });
     }
 
-    // Extract text from private message, group message, or channel post
-    const message = update.message || update.channel_post || update.edited_message;
-    const userText = message?.text?.trim();
-    const chatId = message?.chat?.id;
+    // Resolve customer bot token from database column
+    const customerBotToken =
+      deployment.telegram_token ||
+      deployment.telegram_bot_token ||
+      deployment.bot_token ||
+      process.env.TELEGRAM_SUPPORT_BOT_TOKEN;
 
-    if (!chatId || !userText) {
+    if (!customerBotToken) {
+      console.error('[Webhook] No bot token found in database for instance:', deployment.id);
       return NextResponse.json({ ok: true });
     }
 
-    // 1. Fetch trained knowledge base from Supabase
-    let botName = 'AutoCloud Support';
-    let businessContext =
+    const botName = deployment.name || 'AI Assistant';
+    const businessContext =
+      deployment.custom_context?.trim() ||
       'AutoCloud AI provides instant, 1-click cloud hosting for autonomous AI agents and bots at $12/month per bot instance.';
 
-    const { data: deployment } = await supabase
-      .from('deployments')
-      .select('*')
-      .or('template_id.eq.telegram,name.ilike.%telegram%')
-      .maybeSingle();
-
-    if (deployment) {
-      botName = deployment.name || botName;
-      if (deployment.custom_context?.trim()) {
-        businessContext = deployment.custom_context.trim();
-      }
+    // 3. If user sent empty /start, greet immediately
+    if (!userText) {
+      await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `Hello! I am the AI assistant for ${botName}. How can I help you today?`,
+        }),
+      });
+      return NextResponse.json({ ok: true });
     }
 
-    // 2. Strict AI Prompt
+    // 4. Strict enterprise prompt using customer context
     const systemPrompt = `
-You are the official Telegram AI assistant for "${botName}".
+You are the official customer support AI assistant for "${botName}".
 
 RULES:
-1. Answer in 1 to 2 clear, concise sentences.
-2. PRICING: Every bot on AutoCloud AI (Telegram, Slack, Discord, Web Chat) is a flat $12/month.
-3. SUPPORT: Direct users to priyamrana069@gmail.com for escalation.
-4. OUT-OF-SCOPE: If asked about topics outside AutoCloud AI, politely decline and offer support email.
+1. Answer in 1 to 2 concise, clear, and professional sentences.
+2. Only answer questions based on the KNOWLEDGE BASE below.
+3. PRICING: Every bot instance on AutoCloud AI is a flat $12/month.
+4. SUPPORT: Direct unhandled inquiries to priyamrana069@gmail.com.
+5. OUT-OF-SCOPE: If asked about unrelated topics, politely state you only assist with ${botName} inquiries.
 
 KNOWLEDGE BASE:
 ${businessContext}
 `.trim();
 
-    let replyText = 'Hello! How can I assist you with AutoCloud AI today?';
+    let replyText = `Hello! How can I assist you with ${botName} today?`;
 
-    // 3. Generate response with Gemini
+    // 5. Generate response using Gemini
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY1;
-
     if (geminiKey) {
       try {
         const geminiRes = await fetch(
@@ -76,7 +98,7 @@ ${businessContext}
               contents: [
                 {
                   role: 'user',
-                  parts: [{ text: `${systemPrompt}\n\nUser: ${userText}\nAI Response:` }],
+                  parts: [{ text: `${systemPrompt}\n\nUser Question: ${userText}\nAI Reply:` }],
                 },
               ],
               generationConfig: {
@@ -86,17 +108,16 @@ ${businessContext}
             }),
           }
         );
-
-        const geminiData = await geminiRes.json();
-        const generated = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        const data = await geminiRes.json();
+        const generated = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (generated) replyText = generated;
-      } catch (e) {
-        console.error('Gemini Error in Telegram Webhook:', e);
+      } catch (err) {
+        console.error('Gemini processing error:', err);
       }
     }
 
-    // 4. Fallback to Groq if Gemini failed
-    if (replyText === 'Hello! How can I assist you with AutoCloud AI today?' && process.env.GROQ_API_KEY) {
+    // 6. Fallback to Groq if Gemini is rate limited
+    if (replyText.startsWith('Hello! How can I assist') && process.env.GROQ_API_KEY) {
       try {
         const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -114,17 +135,16 @@ ${businessContext}
             temperature: 0.1,
           }),
         });
-
         const groqData = await groqRes.json();
         const groqReply = groqData.choices?.[0]?.message?.content?.trim();
         if (groqReply) replyText = groqReply;
-      } catch (e) {
-        console.error('Groq Fallback Error:', e);
+      } catch (err) {
+        console.error('Groq fallback error:', err);
       }
     }
 
-    // 5. Deliver message back to Telegram
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+    // 7. Deliver response back through the customer's Telegram bot
+    await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -135,7 +155,7 @@ ${businessContext}
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Telegram Handler Root Error:', err);
+    console.error('Dynamic Telegram Webhook Error:', err);
     return NextResponse.json({ ok: true });
   }
 }

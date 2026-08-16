@@ -18,41 +18,54 @@ export async function POST(req: Request) {
     if (eventName === 'order_created') {
       const orderId = payload.data?.id?.toString();
       const userEmail = payload.data?.attributes?.user_email;
-      const customData = payload.meta?.custom_data || {};
-      const templateId = customData.template_id || 'telegram-ai-bot';
+    const customData = payload.meta?.custom_data || {};
+    const templateId = customData.template_id || customData.variant || 'telegram';
 
-      // 1. IDEMPOTENCY CHECK: If an instance for this order_id already exists, stop here!
-      if (orderId) {
-        const { data: existing } = await supabase
-          .from('deployments')
-          .select('id')
-          .eq('order_id', orderId)
-          .maybeSingle();
+    // Map template IDs to clean product titles
+    const templateNames: Record<string, string> = {
+      telegram: 'Telegram AI Bot',
+      'telegram-ai-bot': 'Telegram AI Bot',
+      slack: 'Slack AI Bot',
+      'slack-ai-bot': 'Slack AI Bot',
+      discord: 'Discord AI Bot',
+      'discord-ai-bot': 'Discord AI Bot',
+      webchat: 'Web Chat Widget',
+      'webchat-ai-bot': 'Web Chat Widget',
+    };
 
-        if (existing) {
-          console.log(`[Webhook] Order ${orderId} already exists in database. Skipping duplicate.`);
-          return NextResponse.json({ message: 'Order already processed' }, { status: 200 });
-        }
-      }
+    const botDisplayName = templateNames[templateId] || 'Universal AI Bot';
 
-      // 2. Insert ONLY ONE instance with generated access password & user email
-      const accessPassword = crypto.randomBytes(4).toString('hex').toUpperCase(); // e.g., 'A3F81B2C'
-
-      const { data: newDeployment, error } = await supabase
+    // 1. IDEMPOTENCY CHECK: If an instance for this order_id already exists, stop here!
+    if (orderId) {
+      const { data: existing } = await supabase
         .from('deployments')
-        .insert([
-          {
-            name: 'Telegram AI Bot Runner',
-            template_id: templateId,
-            order_id: orderId || null,
-            user_email: userEmail || null,
-            access_password: accessPassword,
-            is_enabled: true,
-          },
-        ])
-        .select()
-        .single();
+        .select('id')
+        .eq('order_id', orderId)
+        .maybeSingle();
 
+      if (existing) {
+        console.log(`[Webhook] Order ${orderId} already exists in database. Skipping duplicate.`);
+        return NextResponse.json({ message: 'Order already processed' }, { status: 200 });
+      }
+    }
+
+    // 2. Insert ONLY ONE instance with dynamic bot name and access password
+    const accessPassword = crypto.randomBytes(4).toString('hex').toUpperCase();
+
+    const { data: newDeployment, error } = await supabase
+      .from('deployments')
+      .insert([
+        {
+          name: botDisplayName,
+          template_id: templateId,
+          order_id: orderId || null,
+          user_email: userEmail || null,
+          access_password: accessPassword,
+          is_enabled: true,
+        },
+      ])
+      .select()
+      .single();
       if (error) {
         console.error('[Webhook DB Error]:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });

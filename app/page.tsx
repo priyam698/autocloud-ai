@@ -343,64 +343,142 @@ export default function Home() {
             <p className="text-slate-400 text-xs max-w-md">Select a pre-configured template to provision your dedicated cloud container instantly.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {templates.map((tpl) => {
-              const IconComponent = tpl.icon;
-              return (
-                <div 
-                  key={tpl.id}
-                  className={`bg-slate-900/60 border border-slate-800/90 ${tpl.border} transition-all duration-300 rounded-3xl p-8 backdrop-blur-xl flex flex-col justify-between group hover:shadow-2xl hover:shadow-indigo-950/50 relative overflow-hidden`}
-                >
-                  {/* Subtle Card Background Glow */}
-                  <div className={`absolute -right-12 -top-12 w-36 h-36 bg-gradient-to-br ${tpl.gradient} rounded-full blur-2xl pointer-events-none group-hover:scale-150 transition-transform duration-500`} />
-
-                  <div>
-                    {/* Header Row */}
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="w-12 h-12 rounded-2xl bg-slate-800/80 border border-slate-700/50 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
-                        <IconComponent className="w-6 h-6" />
-                      </div>
-                      <div className={`px-3.5 py-1.5 rounded-full border text-xs font-mono font-semibold ${tpl.badgeColor}`}>
-                        ${tpl.price}/mo
-                      </div>
-                    </div>
-
-                    {/* Template Info */}
-                    <h3 className="text-xl font-bold text-white mb-3 group-hover:text-indigo-300 transition-colors">{tpl.name}</h3>
-                    <p className="text-xs text-slate-400 mb-6 leading-relaxed font-normal">{tpl.description}</p>
-
-                    {/* Feature Tags */}
-                    <div className="flex flex-wrap gap-2 mb-8">
-                      {tpl.tags.map((tag, tIdx) => (
-                        <span key={tIdx} className="text-[10px] font-mono px-2.5 py-1 rounded-md bg-slate-800/50 text-slate-400 border border-slate-700/40">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Deploy Button */}
-                  <button
-                    onClick={() => handleDeploy(tpl.id)}
-                    disabled={loadingId === tpl.id}
-                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs py-3.5 px-5 rounded-2xl transition-all shadow-lg shadow-indigo-600/25 disabled:opacity-50 active:scale-95 group/btn"
-                  >
-                    {loadingId === tpl.id ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Initializing Checkout...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <span>Deploy Instance</span>
-                        <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
-                      </>
-                    )}
-                  </button>
+          {/* CHANNEL-SPECIFIC BOT SERVICES */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          
+          {/* 1. TELEGRAM BOT */}
+          <div className="relative rounded-2xl bg-slate-900/80 border border-slate-800 p-6 flex flex-col justify-between hover:border-purple-500/60 transition-all duration-300 shadow-xl group">
+            <div>
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-2xl">
+                  ✈️
                 </div>
-              );
-            })}
+                <div className="bg-slate-950 border border-slate-800 px-3 py-1 rounded-lg text-xs font-bold text-white">
+                  $12<span className="text-slate-400 text-[10px] font-normal">/mo</span>
+                </div>
+              </div>
+              <h4 className="text-lg font-bold text-white mb-1.5 group-hover:text-purple-300 transition">
+                Telegram AI Bot
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                24/7 automated Telegram customer support and lead capture assistant connected to your knowledge base.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-6">
+                {['@BotFather', 'Groups & DMs', 'Fast AI'].map((tag) => (
+                  <span key={tag} className="px-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-[10px] text-slate-300 font-mono">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <a
+              href="/dashboard"
+              className="w-full py-2.5 bg-slate-800 hover:bg-purple-600 text-white font-semibold rounded-xl text-xs text-center transition duration-200"
+            >
+              Deploy Telegram Bot →
+            </a>
           </div>
+
+          {/* 2. SLACK BOT */}
+          <div className="relative rounded-2xl bg-slate-900/80 border border-slate-800 p-6 flex flex-col justify-between hover:border-purple-500/60 transition-all duration-300 shadow-xl group">
+            <div>
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-2xl">
+                  👥
+                </div>
+                <div className="bg-slate-950 border border-slate-800 px-3 py-1 rounded-lg text-xs font-bold text-white">
+                  $12<span className="text-slate-400 text-[10px] font-normal">/mo</span>
+                </div>
+              </div>
+              <h4 className="text-lg font-bold text-white mb-1.5 group-hover:text-purple-300 transition">
+                Slack AI Bot
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                Internal team assistant and ticketing bot directly integrated inside your Slack channels and direct messages.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-6">
+                {['App Mentions', 'Internal DMs', 'Workspace Sync'].map((tag) => (
+                  <span key={tag} className="px-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-[10px] text-slate-300 font-mono">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <a
+              href="/dashboard"
+              className="w-full py-2.5 bg-slate-800 hover:bg-purple-600 text-white font-semibold rounded-xl text-xs text-center transition duration-200"
+            >
+              Deploy Slack Bot →
+            </a>
+          </div>
+
+          {/* 3. DISCORD BOT */}
+          <div className="relative rounded-2xl bg-slate-900/80 border border-slate-800 p-6 flex flex-col justify-between hover:border-purple-500/60 transition-all duration-300 shadow-xl group">
+            <div>
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-2xl">
+                  👾
+                </div>
+                <div className="bg-slate-950 border border-slate-800 px-3 py-1 rounded-lg text-xs font-bold text-white">
+                  $12<span className="text-slate-400 text-[10px] font-normal">/mo</span>
+                </div>
+              </div>
+              <h4 className="text-lg font-bold text-white mb-1.5 group-hover:text-purple-300 transition">
+                Discord AI Bot
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                Community support agent and server moderator trained on your knowledge base to answer community members.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-6">
+                {['Server Invites', 'Moderation', 'Channel Q&A'].map((tag) => (
+                  <span key={tag} className="px-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-[10px] text-slate-300 font-mono">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <a
+              href="/dashboard"
+              className="w-full py-2.5 bg-slate-800 hover:bg-purple-600 text-white font-semibold rounded-xl text-xs text-center transition duration-200"
+            >
+              Deploy Discord Bot →
+            </a>
+          </div>
+
+          {/* 4. WEB CHAT WIDGET */}
+          <div className="relative rounded-2xl bg-slate-900/80 border border-slate-800 p-6 flex flex-col justify-between hover:border-purple-500/60 transition-all duration-300 shadow-xl group">
+            <div>
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-2xl">
+                  🌐
+                </div>
+                <div className="bg-slate-950 border border-slate-800 px-3 py-1 rounded-lg text-xs font-bold text-white">
+                  $12<span className="text-slate-400 text-[10px] font-normal">/mo</span>
+                </div>
+              </div>
+              <h4 className="text-lg font-bold text-white mb-1.5 group-hover:text-purple-300 transition">
+                Web Chat Widget
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                Embeddable AI live chat bubble for websites, Shopify stores, and web apps with a single script tag.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-6">
+                {['1-Line Script', 'Custom Theme', 'Lead Capture'].map((tag) => (
+                  <span key={tag} className="px-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-[10px] text-slate-300 font-mono">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <a
+              href="/dashboard"
+              className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl text-xs text-center transition duration-200 shadow-lg shadow-purple-600/20"
+            >
+              Deploy Web Widget →
+            </a>
+          </div>
+
+        </div>
         </section>
       </main>
 

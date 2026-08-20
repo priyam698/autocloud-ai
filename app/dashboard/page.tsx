@@ -326,40 +326,46 @@ AUTOCLOUD AI — E-COMMERCE & BUSINESS SUPPORT
     setBusinessInfo(template);
   };
 const handleAutoScrape = async () => {
-    if (!websiteUrl) {
-      alert('Please enter a website URL');
-      return;
-    }
-
-    const targetId = keyModalInstance?.id || instances[0]?.id;
-
-    if (!targetId) {
-      alert('No active deployment selected.');
+    const target = (websiteUrl || '').trim();
+    if (!target) {
+      setScrapeStatus('❌ Please enter a valid website URL');
       return;
     }
 
     setIsScraping(true);
-    setScrapeStatus('⏳ Scraping website content...');
+    setScrapeStatus('⏳ Crawling and parsing website content with AI...');
 
     try {
       const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceId: targetId, websiteUrl }),
+        body: JSON.stringify({
+          url: target,
+          websiteUrl: target,
+          website_url: target,
+          deepCrawl,
+        }),
       });
 
       const data = await res.json();
 
-      if (data.success) {
-        setScrapeStatus(`✨ Success! Scraped ${data.charCount || ''} characters into AI knowledge.`);
-        if (data.knowledgeContext) {
-          setBusinessInfo(data.knowledgeContext);
-        }
-      } else {
-        setScrapeStatus(`❌ Error: ${data.error || 'Failed to scrape'}`);
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to extract content');
       }
-    } catch (err) {
-      setScrapeStatus('❌ Request failed. Check console.');
+
+      const content = data.knowledge || data.content || data.text || '';
+      if (content) {
+        setBusinessInfo(content);
+        setScrapeStatus(
+          `✓ Extracted ${
+            data.wordCount ? data.wordCount.toLocaleString() : content.split(/\s+/).length
+          } words across ${data.pagesScraped || 1} pages`
+        );
+      } else {
+        throw new Error('No readable text content found on this domain');
+      }
+    } catch (err: any) {
+      setScrapeStatus(`❌ ${err.message || 'Error connecting to scrape service.'}`);
     } finally {
       setIsScraping(false);
     }

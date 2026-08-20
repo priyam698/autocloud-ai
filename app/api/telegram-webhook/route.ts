@@ -1,35 +1,37 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-// Comprehensive AutoCloud AI Knowledge Base
-const AUTOCLOUD_KNOWLEDGE_BASE = `
-# AUTOCLOUD AI PLATFORM KNOWLEDGE BASE
-
-1. PLATFORM OVERVIEW:
-- AutoCloud AI (https://autocloud-ai-p448.vercel.app) is an autonomous, 1-click cloud hosting platform for AI customer support agents and bots.
-- Supported Channels: Telegram AI Bots, Slack AI Support Bots, Discord Community Bots, and Website Webchat Widgets.
-- Infrastructure: 99.9% uptime, 24/7 continuous cloud execution, zero server management, zero DevOps required.
-
-2. PRICING & FEES:
-- Pricing: Flat $12/month per bot instance across all supported platforms (Telegram, Slack, Discord, Webchat).
-- Setup Fees & Hidden Charges: $0. There are no setup fees, no maintenance fees, and no hidden charges.
-- Free Trial: Paid tier starts at $12/month.
-- Billing: Processed securely via LemonSqueezy.
-
-3. AUTO-TRAINING & SCRAPING:
-- Users can paste any website URL into the dashboard. AutoCloud AI automatically scrapes and converts website content into an active AI knowledge base.
-
-4. SUPPORT & INSTANCE TROUBLESHOOTING:
-- PASSWORD / LOGIN CREDENTIALS RESET: If a user asks how to reset login credentials, forgot password, or lost instance access, reply: "To reset your dashboard login credentials or instance access, please email priyamrana069@gmail.com with your registered email."
-- ACCIDENTALLY DELETED INSTANCE: If a user deleted their bot instance, reply: "If you accidentally deleted your instance, please send your billing receipt to priyamrana069@gmail.com along with your query to restore your instance."
-- HUMAN SUPPORT: For technical escalation or human assistance, email priyamrana069@gmail.com.
-- OUT-OF-SCOPE: For questions unrelated to AutoCloud AI, politely decline and state you only assist with AutoCloud AI.
+// Fallback baseline platform knowledge if no custom knowledge was scraped
+const FALLBACK_DEFAULT_KNOWLEDGE = `
+AutoCloud AI is an autonomous, 1-click cloud platform for hosting 24/7 AI customer support bots and agents.
+- Flat Pricing: $12/month per bot instance across Telegram, Slack, Discord, and Web Chat widgets.
+- $0 setup fees, no maintenance fees, no server management or VPS required.
+- Human support / escalation: Email priyamrana069@gmail.com.
+- Forgot credentials or lost instance access: Email priyamrana069@gmail.com to reset.
+- Accidentally deleted instance: Email billing receipt to priyamrana069@gmail.com for restoration.
 `.trim();
+
+// Timeout-protected fetch helper to prevent serverless function hangs
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 6000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -49,23 +51,27 @@ export async function POST(req: Request) {
     // 1. Clean command triggers
     userText = userText.replace(/^\/start(@\w+)?/i, '').replace(/@\w+/g, '').trim();
 
-    // 2. Fetch specific customer deployment & context from Supabase
-    let deployment = null;
+    // 2. Fetch deployment and scraped context from Supabase
+    let deployment: any = null;
+
     if (instanceId) {
-      const res = await supabase.from('deployments').select('*').eq('id', instanceId).maybeSingle();
-      deployment = res.data;
-    } else if (queryToken) {
-      const res = await supabase.from('deployments').select('*').eq('bot_token', queryToken).maybeSingle();
-      deployment = res.data;
+      const { data } = await supabase.from('deployments').select('*').eq('id', instanceId).maybeSingle();
+      deployment = data;
+    }
+
+    if (!deployment && queryToken) {
+      const { data } = await supabase.from('deployments').select('*').eq('bot_token', queryToken).maybeSingle();
+      deployment = data;
     }
 
     if (!deployment) {
-      const res = await supabase
+      const { data } = await supabase
         .from('deployments')
         .select('*')
-        .or('template_id.eq.telegram,name.ilike.%telegram%')
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
-      deployment = res.data;
+      deployment = data;
     }
 
     const customerBotToken =
@@ -75,174 +81,212 @@ export async function POST(req: Request) {
       process.env.TELEGRAM_SUPPORT_BOT_TOKEN;
 
     if (!customerBotToken) {
-      console.error('[Telegram Webhook] No valid bot token found.');
+      console.error('[Telegram Webhook Error]: No customer bot token found.');
       return NextResponse.json({ ok: true });
     }
 
-    const botName = deployment?.name || 'AutoCloud Support';
-    const customContext = deployment?.custom_context?.trim() || '';
-    const mergedKnowledge = `${AUTOCLOUD_KNOWLEDGE_BASE}\n\n# CUSTOM INSTANCE CONTEXT:\n${customContext}`.trim();
+    const botName = deployment?.name || 'AI Assistant';
+    const scrapedKnowledge = (deployment?.custom_context || deployment?.knowledge || '').trim();
+    const effectiveKnowledge = scrapedKnowledge.length > 20 ? scrapedKnowledge : FALLBACK_DEFAULT_KNOWLEDGE;
 
-    // If user sent empty /start command
+    // Direct greeting on empty /start
     if (!userText) {
       await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: `Hello! I am the official AI assistant for ${botName}. How can I assist you today?`,
+          text: `Hello! I am your AI assistant. How can I help you today?`,
         }),
       });
       return NextResponse.json({ ok: true });
     }
 
-    // 3. High-Precision Instant Intent Matcher
+    // 3. Fast-Path Hard Rule Handlers
     const lower = userText.toLowerCase();
     let replyText: string | null = null;
 
-    // Reset password / Login credentials
     if (
-      (lower.includes('reset') || lower.includes('forgot') || lower.includes('lost') || lower.includes('change')) &&
-      (lower.includes('password') || lower.includes('credential') || lower.includes('login') || lower.includes('account'))
+      (lower.includes('reset') || lower.includes('forgot') || lower.includes('lost')) &&
+      (lower.includes('password') || lower.includes('credential') || lower.includes('login') || lower.includes('access'))
     ) {
-      replyText = 'To reset your dashboard login credentials or instance access, please email priyamrana069@gmail.com with your registered account details.';
-    }
-    // Accidentally deleted instance
-    else if (
-      (lower.includes('delete') || lower.includes('deleted') || lower.includes('remove') || lower.includes('lost')) &&
+      replyText = 'To reset your account login credentials or instance access, please email priyamrana069@gmail.com with your registered details.';
+    } else if (
+      (lower.includes('delete') || lower.includes('deleted') || lower.includes('remove')) &&
       (lower.includes('instance') || lower.includes('bot') || lower.includes('agent'))
     ) {
-      replyText = 'If you accidentally deleted your instance, please send your billing receipt to priyamrana069@gmail.com along with your query, and our team will restore it for you.';
-    }
-    // Hidden fees / setup fees / free trial
-    else if (
-      lower.includes('hidden') ||
-      lower.includes('setup fee') ||
-      lower.includes('extra fee') ||
-      lower.includes('maintenance fee')
-    ) {
-      replyText = 'There are $0 setup fees and no hidden maintenance costs. AutoCloud AI is a flat $12/month per bot instance.';
-    }
-    // Human support / contact person
-    else if (
-      lower.includes('human') ||
-      lower.includes('real person') ||
-      lower.includes('speak to') ||
-      lower.includes('representative') ||
+      replyText = 'If you accidentally deleted your instance, please send your billing receipt to priyamrana069@gmail.com along with your query to restore it.';
+    } else if (
+      lower.includes('speak to a human') ||
+      lower.includes('real human') ||
       lower.includes('support email') ||
       lower.includes('support mail')
     ) {
       replyText = 'You can reach human support directly by emailing priyamrana069@gmail.com.';
     }
 
-    // 4. Dynamic LLM Generation (Groq -> Cerebras -> Gemini)
+    // 4. Multi-Provider AI Inference Waterfall
     if (!replyText) {
       const systemPrompt = `
-You are the official customer support AI assistant for "${botName}".
+You are the official customer support AI assistant for: "${botName}".
 
-MISSION & RULES:
-1. Answer the user's question directly and concisely (1 to 2 clear sentences).
-2. Only use the KNOWLEDGE BASE provided below.
-3. PRICING: Every bot instance on AutoCloud AI (Slack, Telegram, Discord, Web Chat) is a flat $12/month with $0 setup fees.
-4. If the question cannot be answered from the knowledge base, provide the support email: priyamrana069@gmail.com.
+MISSION:
+Answer the user's question accurately, concisely, and naturally (1 to 2 clear sentences) using ONLY the KNOWLEDGE BASE provided below.
+
+RULES:
+1. Base all facts, products, services, offerings, and pricing strictly on the KNOWLEDGE BASE.
+2. If the user asks something completely outside the knowledge base, politely decline and provide support assistance.
 
 KNOWLEDGE BASE:
-${mergedKnowledge}
+${effectiveKnowledge}
 `.trim();
 
-      // Provider 1: Groq (llama-3.1-8b-instant - Fast <300ms response)
+      // --- Provider 1: Groq (Llama 3.3 70B) ---
       const groqKey = process.env.GROQ_API_KEY?.trim();
-      if (groqKey) {
+      if (groqKey && !replyText) {
         try {
-          const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${groqKey}`,
-              'Content-Type': 'application/json',
+          const res = await fetchWithTimeout(
+            'https://api.groq.com/openai/v1/chat/completions',
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${groqKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userText },
+                ],
+                max_tokens: 180,
+                temperature: 0.1,
+              }),
             },
-            body: JSON.stringify({
-              model: 'llama-3.1-8b-instant',
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userText },
-              ],
-              max_tokens: 150,
-              temperature: 0.1,
-            }),
-          });
+            6000
+          );
 
-          const groqData = await groqRes.json();
-          if (groqData.choices?.[0]?.message?.content) {
-            replyText = groqData.choices[0].message.content.trim();
-          }
+          const data = await res.json();
+          const content = data.choices?.[0]?.message?.content?.trim();
+          if (content) replyText = content;
+          else console.error('[Groq 70B Non-fatal Error]:', JSON.stringify(data));
         } catch (err) {
-          console.error('[Groq Error]:', err);
+          console.error('[Groq 70B Timeout/Error]:', err);
         }
       }
 
-      // Provider 2: Cerebras (llama3.1-8b)
+      // --- Provider 2: Cerebras (Llama 3.1 8B - Ultra Fast) ---
       const cerebrasKey = process.env.CEREBRAS_API_KEY?.trim();
-      if (!replyText && cerebrasKey) {
+      if (cerebrasKey && !replyText) {
         try {
-          const cerebrasRes = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${cerebrasKey}`,
-              'Content-Type': 'application/json',
+          const res = await fetchWithTimeout(
+            'https://api.cerebras.ai/v1/chat/completions',
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${cerebrasKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'llama3.1-8b',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userText },
+                ],
+                max_tokens: 180,
+                temperature: 0.1,
+              }),
             },
-            body: JSON.stringify({
-              model: 'llama3.1-8b',
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userText },
-              ],
-              max_tokens: 150,
-              temperature: 0.1,
-            }),
-          });
+            5000
+          );
 
-          const cerebrasData = await cerebrasRes.json();
-          if (cerebrasData.choices?.[0]?.message?.content) {
-            replyText = cerebrasData.choices[0].message.content.trim();
-          }
+          const data = await res.json();
+          const content = data.choices?.[0]?.message?.content?.trim();
+          if (content) replyText = content;
+          else console.error('[Cerebras Non-fatal Error]:', JSON.stringify(data));
         } catch (err) {
-          console.error('[Cerebras Error]:', err);
+          console.error('[Cerebras Timeout/Error]:', err);
         }
       }
 
-      // Provider 3: Gemini Flash 1.5
+      // --- Provider 3: Google Gemini Flash 1.5 ---
       const geminiKey = (process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY1)?.trim();
-      if (!replyText && geminiKey) {
+      if (geminiKey && !replyText) {
         try {
-          const geminiRes = await fetch(
+          const res = await fetchWithTimeout(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ role: 'user', parts: [{ text: userText }] }],
-                generationConfig: { temperature: 0.1, maxOutputTokens: 150 },
+                contents: [
+                  {
+                    role: 'user',
+                    parts: [
+                      {
+                        text: `${systemPrompt}\n\nUser Question: ${userText}\n\nAnswer:`,
+                      },
+                    ],
+                  },
+                ],
+                generationConfig: {
+                  temperature: 0.1,
+                  maxOutputTokens: 180,
+                },
               }),
-            }
+            },
+            6000
           );
 
-          const geminiData = await geminiRes.json();
-          const geminiReply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          if (geminiReply) replyText = geminiReply;
+          const data = await res.json();
+          const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          if (content) replyText = content;
+          else console.error('[Gemini Non-fatal Error]:', JSON.stringify(data));
         } catch (err) {
-          console.error('[Gemini Error]:', err);
+          console.error('[Gemini Timeout/Error]:', err);
+        }
+      }
+
+      // --- Provider 4: Groq Instant Fallback (Llama 3.1 8B) ---
+      if (groqKey && !replyText) {
+        try {
+          const res = await fetchWithTimeout(
+            'https://api.groq.com/openai/v1/chat/completions',
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${groqKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'llama-3.1-8b-instant',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userText },
+                ],
+                max_tokens: 150,
+                temperature: 0.1,
+              }),
+            },
+            4000
+          );
+
+          const data = await res.json();
+          const content = data.choices?.[0]?.message?.content?.trim();
+          if (content) replyText = content;
+        } catch (err) {
+          console.error('[Groq 8B Fast Timeout/Error]:', err);
         }
       }
     }
 
-    // Default safety fallback
+    // Safety fallback
     if (!replyText) {
-      replyText = 'AutoCloud AI hosts bots across Slack, Telegram, and Discord for a flat $12/month per instance. For support, contact priyamrana069@gmail.com.';
+      replyText = 'I am currently having trouble accessing the full knowledge base. Please contact human support at priyamrana069@gmail.com for assistance.';
     }
 
-    // 5. Send message back to Telegram
-    await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
+    // 5. Send message safely to Telegram
+    const telegramRes = await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -251,9 +295,14 @@ ${mergedKnowledge}
       }),
     });
 
+    if (!telegramRes.ok) {
+      const errData = await telegramRes.json();
+      console.error('[Telegram Send Message Failed]:', errData);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('[Telegram Webhook Fatal Error]:', err);
+    console.error('[Telegram Fatal Root Exception]:', err);
     return NextResponse.json({ ok: true });
   }
 }

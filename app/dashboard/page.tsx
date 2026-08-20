@@ -153,31 +153,32 @@ export default function Dashboard() {
     setInputPassword('');
   };
 const handleScrapeWebsite = async () => {
-    if (!websiteUrl || !keyModalInstance?.id) {
-      setScrapeStatus('Please provide both a valid URL and ensure an instance is selected.');
+    if (!websiteUrl?.trim()) {
+      setScrapeStatus('Please enter a valid website URL.');
       return;
     }
 
     try {
       setIsScraping(true);
-      setScrapeStatus('Scraping website content...');
+      setScrapeStatus('Scraping and analyzing website content with AI...');
 
       const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          instanceId: keyModalInstance.id,
-          url: websiteUrl,
-          websiteUrl: websiteUrl,
+          instanceId: keyModalInstance?.id,
+          url: websiteUrl.trim(),
+          websiteUrl: websiteUrl.trim(),
         }),
       });
 
       const data = await res.json();
 
-      if (res.ok && (data.text || data.content || data.scrapedContent || data.success)) {
-        const content = data.text || data.content || data.scrapedContent;
+      if (res.ok && (data.knowledge || data.context || data.text || data.success)) {
+        const content = data.knowledge || data.context || data.text || data.content || '';
         if (content) {
-          setBusinessInfo((prev) => (prev ? `${prev}\n\n--- Scraped Knowledge ---\n${content}` : content));
+          // Immediately populate the textarea with the structured knowledge base
+          setBusinessInfo(content);
         }
         setScrapeStatus('✓ Scraped and synced to business knowledge!');
       } else {

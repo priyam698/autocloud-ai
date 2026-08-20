@@ -6,17 +6,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-// Comprehensive AutoCloud AI Knowledge Base
 const DEFAULT_AUTOCLOUD_KNOWLEDGE = `
 AutoCloud AI is a 1-click cloud platform for hosting autonomous AI agents and bots 24/7.
-- PRICING: Flat $12/month per bot instance across all supported platforms (Slack, Telegram, Discord, and Website Webchat widgets). No hidden server fees.
-- SUPPORTED BOT TYPES:
-  * Telegram AI Support Bots (Customer service, community management)
-  * Slack AI Support Bots ($12/month per instance, enterprise workspace assistant)
-  * Discord AI Community Bots ($12/month per instance)
-  * Website AI Chat Widgets ($12/month per instance)
-- KEY FEATURES: 1-click instant deployment, 99.9% uptime cloud hosting, automated website knowledge scraping, custom system prompt engineering, multi-tenant agent management.
-- HUMAN SUPPORT / ESCALATION: For human support, billing inquiries, or technical assistance, users must contact priyamrana069@gmail.com.
+- PRICING: Flat $12/month per bot instance across all supported platforms (Slack, Telegram, Discord, and Web Chat widgets).
+- SLACK BOT PRICING: $12/month per instance with 24/7 cloud uptime and AI responses.
+- TELEGRAM BOT PRICING: $12/month per instance.
+- DISCORD BOT PRICING: $12/month per instance.
+- KEY FEATURES: 1-click deployment, 99.9% uptime, website knowledge auto-scraping, custom context prompts, zero DevOps setup.
+- HUMAN SUPPORT: For technical help, billing, or human escalation, contact priyamrana069@gmail.com.
 `.trim();
 
 export async function POST(req: Request) {
@@ -34,10 +31,10 @@ export async function POST(req: Request) {
     const chatId = msg.chat.id;
     let userText = msg.text.trim();
 
-    // 1. Strip Telegram command triggers (/start, bot mentions)
+    // 1. Strip /start and bot mentions
     userText = userText.replace(/^\/start(@\w+)?/i, '').replace(/@\w+/g, '').trim();
 
-    // 2. Fetch deployment and custom context from Supabase
+    // 2. Fetch deployment row from Supabase
     let deployment = null;
     if (instanceId) {
       const res = await supabase.from('deployments').select('*').eq('id', instanceId).maybeSingle();
@@ -63,48 +60,46 @@ export async function POST(req: Request) {
       process.env.TELEGRAM_SUPPORT_BOT_TOKEN;
 
     if (!customerBotToken) {
-      console.error('[Telegram Webhook] Missing customerBotToken');
+      console.error('[Telegram Webhook] No customerBotToken available.');
       return NextResponse.json({ ok: true });
     }
 
     const botName = deployment?.name || 'AutoCloud Support';
     const customContext = deployment?.custom_context?.trim() || '';
-    const fullKnowledgeBase = `${DEFAULT_AUTOCLOUD_KNOWLEDGE}\n\n${customContext}`.trim();
+    const fullKnowledge = `${DEFAULT_AUTOCLOUD_KNOWLEDGE}\n\n${customContext}`.trim();
 
-    // If user sent empty /start command
+    // Direct greeting on empty /start
     if (!userText) {
       await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: `Hello! I am the official AI assistant for ${botName}. How can I assist you today?`,
+          text: `Hello! I am the official AI assistant for ${botName}. How can I help you today?`,
         }),
       });
       return NextResponse.json({ ok: true });
     }
 
-    // 3. Strict prompt instructions
+    // 3. Prompt definition
     const systemPrompt = `
 You are the official customer support AI assistant for "${botName}".
 
-MISSION:
-Answer the user's question accurately using ONLY the information in the KNOWLEDGE BASE below.
-
-RULES:
-1. Answer directly in 1 to 2 clear, helpful, and natural sentences.
-2. PRICING: If asked about Slack, Telegram, Discord, or Webchat bot pricing, state clearly that it is a flat $12/month per bot instance.
-3. HUMAN SUPPORT: If asked how to contact human support, provide the email: priyamrana069@gmail.com.
-4. OUT-OF-SCOPE: If asked about topics completely unrelated to AutoCloud AI services, politely decline.
+INSTRUCTIONS:
+1. Answer the user's question accurately using ONLY the KNOWLEDGE BASE below.
+2. Keep replies natural, concise, and helpful (1 to 2 sentences).
+3. PRICING: Flat $12/month per bot instance across Telegram, Slack, Discord, and Web Chat.
+4. HUMAN SUPPORT: If asked for human support, direct them to priyamrana069@gmail.com.
+5. OUT-OF-SCOPE: If asked about topics unrelated to ${botName}, politely decline.
 
 KNOWLEDGE BASE:
-${fullKnowledgeBase}
+${fullKnowledge}
 `.trim();
 
     let replyText = '';
 
-    // 4. Primary Provider: Groq (Llama 3.3 70B)
-    const groqKey = process.env.GROQ_API_KEY;
+    // 4. Primary Provider: Groq (llama-3.1-8b-instant)
+    const groqKey = process.env.GROQ_API_KEY?.trim();
     if (groqKey) {
       try {
         const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -114,7 +109,7 @@ ${fullKnowledgeBase}
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
+            model: 'llama-3.1-8b-instant',
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userText },
@@ -125,15 +120,18 @@ ${fullKnowledgeBase}
         });
 
         const groqData = await groqRes.json();
-        const groqReply = groqData.choices?.[0]?.message?.content?.trim();
-        if (groqReply) replyText = groqReply;
+        if (groqData.choices?.[0]?.message?.content) {
+          replyText = groqData.choices[0].message.content.trim();
+        } else {
+          console.error('[Groq Failure]:', JSON.stringify(groqData));
+        }
       } catch (err) {
-        console.error('[Groq Error]:', err);
+        console.error('[Groq Exception]:', err);
       }
     }
 
-    // 5. Fallback Provider 1: Cerebras (Llama 3.1 8B)
-    const cerebrasKey = process.env.CEREBRAS_API_KEY;
+    // 5. Secondary Provider: Cerebras (llama3.1-8b)
+    const cerebrasKey = process.env.CEREBRAS_API_KEY?.trim();
     if (!replyText && cerebrasKey) {
       try {
         const cerebrasRes = await fetch('https://api.cerebras.ai/v1/chat/completions', {
@@ -154,15 +152,18 @@ ${fullKnowledgeBase}
         });
 
         const cerebrasData = await cerebrasRes.json();
-        const cerebrasReply = cerebrasData.choices?.[0]?.message?.content?.trim();
-        if (cerebrasReply) replyText = cerebrasReply;
+        if (cerebrasData.choices?.[0]?.message?.content) {
+          replyText = cerebrasData.choices[0].message.content.trim();
+        } else {
+          console.error('[Cerebras Failure]:', JSON.stringify(cerebrasData));
+        }
       } catch (err) {
-        console.error('[Cerebras Error]:', err);
+        console.error('[Cerebras Exception]:', err);
       }
     }
 
-    // 6. Fallback Provider 2: Gemini
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY1;
+    // 6. Tertiary Provider: Google Gemini
+    const geminiKey = (process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY1)?.trim();
     if (!replyText && geminiKey) {
       try {
         const geminiRes = await fetch(
@@ -171,25 +172,37 @@ ${fullKnowledgeBase}
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Question: ${userText}\nAI Reply:` }] }],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 120 },
+              contents: [
+                {
+                  role: 'user',
+                  parts: [{ text: `${systemPrompt}\n\nUser Question: ${userText}\nAI Reply:` }],
+                },
+              ],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 150 },
             }),
           }
         );
+
         const geminiData = await geminiRes.json();
         const geminiReply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (geminiReply) replyText = geminiReply;
       } catch (err) {
-        console.error('[Gemini Error]:', err);
+        console.error('[Gemini Exception]:', err);
       }
     }
 
-    // Default safety fallback if all API calls fail
+    // Direct fallback if all keys are unavailable
     if (!replyText) {
-      replyText = 'AutoCloud AI hosts autonomous bots across Telegram, Slack, and Discord for a flat $12/month. For human assistance, contact priyamrana069@gmail.com.';
+      if (userText.toLowerCase().includes('pricing') || userText.toLowerCase().includes('slack')) {
+        replyText = 'AutoCloud AI hosts autonomous bots across Slack, Telegram, and Discord for a flat $12/month per bot instance.';
+      } else if (userText.toLowerCase().includes('support') || userText.toLowerCase().includes('contact')) {
+        replyText = 'You can reach human support directly by emailing priyamrana069@gmail.com.';
+      } else {
+        replyText = `I am the AI assistant for ${botName}. AutoCloud AI provides 1-click cloud hosting for bots at $12/month. For assistance, email priyamrana069@gmail.com.`;
+      }
     }
 
-    // 7. Send reply directly to Telegram chat
+    // 7. Deliver message to Telegram
     await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -201,7 +214,7 @@ ${fullKnowledgeBase}
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('[Telegram Handler Root Error]:', err);
+    console.error('[Telegram Fatal Error]:', err);
     return NextResponse.json({ ok: true });
   }
 }

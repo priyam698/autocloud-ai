@@ -1,258 +1,163 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import * as cheerio from 'cheerio';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
-// Fallback HTML cleaner if direct DOM parsing is needed
-function cleanHtmlContent(html: string): string {
-  const $ = cheerio.load(html);
+// Helper: Strip HTML tags, scripts, styles, SVGs, and extract clean text
+function extractCleanText(html: string): string {
+  let text = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+    .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, ' ')
+    .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, ' ')
+    .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, ' ')
+    .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ')
+    .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
 
-  // Remove unwanted junk elements
-  $('script, style, svg, noscript, iframe, nav, footer, header, form, link, meta, [role="alert"], [aria-hidden="true"]').remove();
+  // Convert key tags to markdown layout
+  text = text
+    .replace(/<h[1-3][^>]*>(.*?)<\/h[1-3]>/gi, '\n\n### $1\n')
+    .replace(/<li[^>]*>(.*?)<\/li>/gi, '\n- $1')
+    .replace(/<p[^>]*>(.*?)<\/p>/gi, '\n$1\n')
+    .replace(/<br\s*[\/]?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ');
 
-  // Extract structured headings and text
-  const contentParts: string[] = [];
+  // Clean decoded entities & excessive whitespace
+  return text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n\n')
+    .trim();
+}
 
-  $('h1, h2, h3, h4, p, li, table, blockquote').each((_, el) => {
-    const tag = el.tagName.toLowerCase();
-    const text = $(el).text().replace(/\s+/g, ' ').trim();
+// Helper: Discover relevant internal links from the homepage
+function findInternalLinks(html: string, baseUrl: string, maxLinks = 6): string[] {
+  try {
+    const parsedBase = new URL(baseUrl);
+    const linkRegex = /href=["']([^"']+)["']/gi;
+    const discovered = new Set<string>();
+    let match;
 
-    if (text.length > 2) {
-      if (['h1', 'h2', 'h3'].includes(tag)) {
-        contentParts.push(`\n### ${text}\n`);
-      } else if (tag === 'li') {
-        contentParts.push(`- ${text}`);
-      } else {
-        contentParts.push(text);
-      }
+    const highPriorityPaths = ['pricing', 'about', 'faq', 'features', 'services', 'docs', 'help', 'contact', 'product', 'terms'];
+
+    while ((match = linkRegex.exec(html)) !== null) {
+      let rawLink = match[1].trim();
+      if (!rawLink || rawLink.startsWith('#') || rawLink.startsWith('mailto:') || rawLink.startsWith('tel:')) continue;
+
+      try {
+        const absoluteUrl = new URL(rawLink, baseUrl);
+        if (absoluteUrl.hostname === parsedBase.hostname && absoluteUrl.pathname !== parsedBase.pathname) {
+          const pathLower = absoluteUrl.pathname.toLowerCase();
+          // Prioritize high-value informational pages
+          if (highPriorityPaths.some(p => pathLower.includes(p))) {
+            discovered.add(absoluteUrl.href);
+          } else if (discovered.size < maxLinks && !pathLower.match(/\.(png|jpg|jpeg|gif|css|js|pdf|svg)$/)) {
+            discovered.add(absoluteUrl.href);
+          }
+        }
+      } catch (_) {}
+
+      if (discovered.size >= maxLinks) break;
     }
-  });
 
-  return contentParts.join('\n').trim();
+    return Array.from(discovered);
+  } catch {
+    return [];
+  }
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => null);
-    let targetUrl = body?.url || body?.websiteUrl || body?.targetUrl;
-    const instanceId = body?.instanceId || body?.instance_id || body?.id;
+    const { url, deepCrawl = true } = await req.json();
 
-    if (!targetUrl || typeof targetUrl !== 'string') {
-      return NextResponse.json(
-        { error: 'A valid website URL is required.' },
-        { status: 400 }
-      );
+    if (!url || typeof url !== 'string') {
+      return NextResponse.json({ error: 'Valid URL is required' }, { status: 400 });
     }
 
-    // Normalize URL
-    targetUrl = targetUrl.trim();
+    let targetUrl = url.trim();
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
       targetUrl = `https://${targetUrl}`;
     }
 
-    console.log(`[Scraper] Starting deep scrape for: ${targetUrl}`);
+    // 1. Fetch Main Landing Page
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
 
-    let rawExtractedText = '';
+    const mainRes = await fetch(targetUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; AutoCloudScraper/2.0; +https://autocloud-ai.com)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    });
+    clearTimeout(timer);
 
-    // Engine 1: Headless Markdown Extractor (Handles SPAs, Client-rendered React/Next.js)
-    try {
-      const jinaRes = await fetch(`https://r.jina.ai/${targetUrl}`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'text/plain, text/markdown',
-        },
+    if (!mainRes.ok) {
+      return NextResponse.json({ error: `Failed to load website (HTTP ${mainRes.status})` }, { status: 400 });
+    }
+
+    const mainHtml = await mainRes.text();
+    const mainTitle = mainHtml.match(/<title[^>]*>(.*?)<\/title>/i)?.[1]?.trim() || targetUrl;
+    const mainText = extractCleanText(mainHtml);
+
+    let combinedMarkdown = `# ${mainTitle}\nSource: ${targetUrl}\n\n${mainText.slice(0, 3500)}`;
+    const crawledUrls = [targetUrl];
+
+    // 2. Recursive Deep Crawl (Subpages: Pricing, About, FAQ, Features)
+    if (deepCrawl) {
+      const subpageUrls = findInternalLinks(mainHtml, targetUrl, 5);
+
+      const subpagePromises = subpageUrls.map(async (subUrl) => {
+        try {
+          const subController = new AbortController();
+          const subTimer = setTimeout(() => subController.abort(), 5000);
+          const subRes = await fetch(subUrl, {
+            signal: subController.signal,
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutoCloudScraper/2.0)' },
+          });
+          clearTimeout(subTimer);
+
+          if (subRes.ok) {
+            const subHtml = await subRes.text();
+            const subText = extractCleanText(subHtml);
+            if (subText.length > 100) {
+              return { url: subUrl, text: subText.slice(0, 2500) };
+            }
+          }
+        } catch (_) {}
+        return null;
       });
 
-      if (jinaRes.ok) {
-        const markdown = await jinaRes.text();
-        if (markdown && markdown.length > 100) {
-          rawExtractedText = markdown;
-          console.log(`[Scraper] Engine 1 (Jina) succeeded. Length: ${markdown.length} chars`);
+      const subpageResults = await Promise.all(subpagePromises);
+
+      for (const res of subpageResults) {
+        if (res) {
+          crawledUrls.push(res.url);
+          const pathName = new URL(res.url).pathname;
+          combinedMarkdown += `\n\n---\n## Page: ${pathName}\nSource: ${res.url}\n\n${res.text}`;
         }
       }
-    } catch (err) {
-      console.warn('[Scraper] Engine 1 failed, attempting Engine 2 (Cheerio direct)...', err);
     }
 
-    // Engine 2: Direct Fetch + Cheerio Parser (Fallback)
-    if (!rawExtractedText) {
-      try {
-        const directRes = await fetch(targetUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml',
-          },
-        });
-
-        if (directRes.ok) {
-          const html = await directRes.text();
-          rawExtractedText = cleanHtmlContent(html);
-          console.log(`[Scraper] Engine 2 (Cheerio) extracted ${rawExtractedText.length} chars`);
-        }
-      } catch (err) {
-        console.error('[Scraper] Engine 2 failed:', err);
-      }
-    }
-
-    if (!rawExtractedText || rawExtractedText.length < 50) {
-      return NextResponse.json(
-        { error: 'Could not extract content from the provided website URL. Please ensure the website is publicly accessible.' },
-        { status: 422 }
-      );
-    }
-
-    // Trim text length if website is massive (keep top 12,000 characters for token limit safety)
-    const truncatedText = rawExtractedText.slice(0, 12000);
-
-    // AI Structuring Prompt: Convert raw page text into a high-precision knowledge base
-    const structuringPrompt = `
-You are an expert AI Knowledge Base Architect.
-Analyze the following raw scraped website content and convert it into an ultra-clean, structured, and comprehensive Knowledge Base for an AI Customer Support Agent.
-
-FORMAT SPECIFICATION:
-1. PLATFORM OVERVIEW:
-   - What the product does, key mission, and core value proposition.
-2. CORE FEATURES & CAPABILITIES:
-   - Itemized list of supported features, channels, and platform integrations.
-3. PRICING & SUBSCRIPTIONS:
-   - Exact pricing breakdown per tier/bot, setup fees ($0), billing terms, and refund policy.
-4. TROUBLESHOOTING & CRITICAL FAQS:
-   - Forgot password / credentials instructions: "Email priyamrana069@gmail.com to reset access."
-   - Deleted instance recovery: "Send billing receipt to priyamrana069@gmail.com along with query to restore."
-   - Human support contact: priyamrana069@gmail.com.
-5. OUT-OF-SCOPE BEHAVIOR:
-   - Politely decline non-platform questions and route to support.
-
-RAW WEBSITE CONTENT:
-${truncatedText}
-`.trim();
-
-    let structuredKnowledge = '';
-
-    // Step 3A: Structure with Groq (llama-3.3-70b-versatile)
-    const groqKey = process.env.GROQ_API_KEY?.trim();
-    if (groqKey) {
-      try {
-        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${groqKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [
-              {
-                role: 'system',
-                content: 'You extract and organize website content into clean, structured Markdown knowledge bases for customer support bots.',
-              },
-              { role: 'user', content: structuringPrompt },
-            ],
-            max_tokens: 1000,
-            temperature: 0.1,
-          }),
-        });
-
-        const groqData = await groqRes.json();
-        structuredKnowledge = groqData.choices?.[0]?.message?.content?.trim() || '';
-      } catch (err) {
-        console.error('[Scraper] Groq structuring error:', err);
-      }
-    }
-
-    // Step 3B: Structure with Cerebras (Fallback)
-    const cerebrasKey = process.env.CEREBRAS_API_KEY?.trim();
-    if (!structuredKnowledge && cerebrasKey) {
-      try {
-        const cerebrasRes = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${cerebrasKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'llama3.1-8b',
-            messages: [
-              {
-                role: 'system',
-                content: 'You extract and organize website content into clean, structured Markdown knowledge bases.',
-              },
-              { role: 'user', content: structuringPrompt },
-            ],
-            max_tokens: 1000,
-            temperature: 0.1,
-          }),
-        });
-
-        const cerebrasData = await cerebrasRes.json();
-        structuredKnowledge = cerebrasData.choices?.[0]?.message?.content?.trim() || '';
-      } catch (err) {
-        console.error('[Scraper] Cerebras structuring error:', err);
-      }
-    }
-
-    // Step 3C: Structure with Gemini (Fallback)
-    const geminiKey = (process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY1)?.trim();
-    if (!structuredKnowledge && geminiKey) {
-      try {
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ role: 'user', parts: [{ text: structuringPrompt }] }],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
-            }),
-          }
-        );
-
-        const geminiData = await geminiRes.json();
-        structuredKnowledge = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-      } catch (err) {
-        console.error('[Scraper] Gemini structuring error:', err);
-      }
-    }
-
-    // If AI generation fails, fall back to cleaned extracted text directly
-    if (!structuredKnowledge) {
-      structuredKnowledge = truncatedText;
-    }
-
-    // Step 4: If instanceId is provided, auto-sync to Supabase
-    if (instanceId) {
-      const { error: dbError } = await supabase
-        .from('deployments')
-        .update({
-          custom_context: structuredKnowledge,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', instanceId);
-
-      if (dbError) {
-        console.error('[Scraper] Failed to auto-save to database:', dbError);
-      } else {
-        console.log(`[Scraper] Successfully updated custom_context for instance: ${instanceId}`);
-      }
-    }
+    // Calculate word count
+    const wordCount = combinedMarkdown.split(/\s+/).filter(Boolean).length;
 
     return NextResponse.json({
       success: true,
-      url: targetUrl,
-      context: structuredKnowledge,
-      knowledge: structuredKnowledge,
-      text: structuredKnowledge,
-      length: structuredKnowledge.length,
+      knowledge: combinedMarkdown,
+      wordCount,
+      pagesScraped: crawledUrls.length,
+      urls: crawledUrls,
+      message: `Successfully extracted ${wordCount.toLocaleString()} words across ${crawledUrls.length} pages.`,
     });
   } catch (err: any) {
-    console.error('[Scrape API Fatal Exception]:', err);
-    return NextResponse.json(
-      { error: err.message || 'Failed to scrape website' },
-      { status: 500 }
-    );
+    console.error('[Scraper Error]:', err);
+    return NextResponse.json({ error: err.message || 'Scraping failed' }, { status: 500 });
   }
 }

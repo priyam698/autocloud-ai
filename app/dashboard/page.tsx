@@ -55,7 +55,9 @@ export default function Dashboard() {
   const [storeApiKey, setStoreApiKey] = useState<string>('');
   const [isSavingKey, setIsSavingKey] = useState<boolean>(false);
   const [isScraping, setIsScraping] = useState<boolean>(false);
-  const [scrapeStatus, setScrapeStatus] = useState<string>('');
+const [deepCrawl, setDeepCrawl] = useState<boolean>(true);
+const [scrapeStatus, setScrapeStatus] = useState<string>('');
+
 
   // Helper to determine the channel from the instance data
   const getChannelFromInstance = (instance: any): 'telegram' | 'slack' | 'discord' | 'webchat' => {
@@ -718,31 +720,76 @@ const handleAutoScrape = async () => {
           </div>
 
           {/* AUTO-TRAIN AI FROM WEBSITE URL */}
-          <div className="mb-4 text-left p-3 bg-slate-950 border border-slate-800 rounded-xl">
-            <label className="block text-xs font-semibold text-purple-300 mb-1">
+        <div className="mb-4 text-left p-3.5 bg-slate-950 border border-slate-800 rounded-xl">
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs font-semibold text-purple-300">
               🌐 Auto-Train AI from Website URL
             </label>
-            <div className="flex gap-2">
+            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-400 hover:text-slate-200 transition">
               <input
-                type="url"
-                value={websiteUrl}
-                onChange={(e) => setWebsiteUrl(e.target.value)}
-                placeholder="https://yourcompany.com"
-                className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                type="checkbox"
+                checked={deepCrawl}
+                onChange={(e) => setDeepCrawl(e.target.checked)}
+                className="rounded border-slate-700 bg-slate-900 text-purple-600 focus:ring-purple-500 h-3.5 w-3.5 cursor-pointer"
               />
-              <button
-                type="button"
-                onClick={handleScrapeWebsite}
-                disabled={isScraping || !websiteUrl}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition shrink-0"
-              >
-                {isScraping ? 'Scraping...' : 'Auto-Scrape'}
-              </button>
-            </div>
-            {scrapeStatus && (
-              <p className="text-[11px] text-slate-400 mt-2">{scrapeStatus}</p>
-            )}
+              <span>Deep Crawl (FAQ, Pricing, About)</span>
+            </label>
           </div>
+
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="https://yourcompany.com"
+              disabled={isScraping}
+              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:border-purple-500 focus:outline-none transition disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onClick={handleAutoScrape}
+              disabled={isScraping}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-500 active:scale-95 text-xs font-semibold text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[110px]"
+            >
+              {isScraping ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  <span>Crawling...</span>
+                </>
+              ) : (
+                <>
+                  <span>⚡</span>
+                  <span>Auto-Scrape</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Extraction Feedback Badge */}
+{scrapeStatus && (
+  <div
+    className={`mt-2.5 flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium ${
+      scrapeStatus.includes('✓') || scrapeStatus.includes('Extracted') || scrapeStatus.includes('synced')
+        ? 'border border-emerald-500/30 bg-emerald-950/40 text-emerald-300'
+        : scrapeStatus.includes('❌') || scrapeStatus.includes('Error') || scrapeStatus.includes('failed')
+        ? 'border border-red-500/30 bg-red-950/40 text-red-300'
+        : 'border border-blue-500/30 bg-blue-950/40 text-blue-300'
+    }`}
+  >
+    <span>
+      {scrapeStatus.includes('✓') || scrapeStatus.includes('Extracted')
+        ? '🚀'
+        : scrapeStatus.includes('⏳')
+        ? '⏳'
+        : '⚠️'}
+    </span>
+    <span>{scrapeStatus}</span>
+  </div>
+)}
+        </div>
 
           {/* MODAL FOOTER */}
           <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">

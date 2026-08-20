@@ -8,7 +8,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-// Helper: Split text into 1500-char chunks for RAG
+// Helper: Split text into 1500-char chunks for vector indexing
 function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
   const chunks: string[] = [];
   let start = 0;
@@ -19,7 +19,7 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
   return chunks;
 }
 
-// Helper: Vector embedding generator
+// Helper: Vector embedding generator via Gemini
 async function getEmbedding(text: string): Promise<number[] | null> {
   try {
     const apiKey = (process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY1)?.trim();
@@ -48,6 +48,7 @@ export async function POST(req: Request) {
     const {
       instanceId,
       botToken,
+      bot_token,
       discord_token,
       discord_public_key,
       slack_token,
@@ -55,8 +56,10 @@ export async function POST(req: Request) {
       whatsapp_token,
       messenger_token,
       custom_context,
+      knowledge,
       bot_type,
       website_url,
+      websiteUrl,
       api_key,
     } = body;
 
@@ -64,15 +67,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Missing instanceId' }, { status: 400 });
     }
 
-    const trimmedToken = botToken?.trim() || null;
-    const knowledgeText = custom_context?.trim() || '';
+    const trimmedToken = (botToken || bot_token)?.trim() || null;
+    const knowledgeText = (custom_context || knowledge || '').trim();
+    const targetUrl = (website_url || websiteUrl || '').trim();
 
-    // 1. Update instance credentials & knowledge in Supabase
+    // 1. Update instance in Supabase using valid table columns only
     const { error: dbError } = await supabase
       .from('deployments')
       .update({
         bot_token: trimmedToken,
-        telegram_token: trimmedToken,
         discord_token: discord_token || null,
         discord_public_key: discord_public_key || null,
         slack_token: slack_token || null,
@@ -80,9 +83,8 @@ export async function POST(req: Request) {
         whatsapp_token: whatsapp_token || null,
         messenger_token: messenger_token || null,
         custom_context: knowledgeText,
-        knowledge: knowledgeText,
         bot_type: bot_type || 'general',
-        website_url: website_url || '',
+        website_url: targetUrl,
         api_key: api_key || '',
         status: 'online',
         updated_at: new Date().toISOString(),
@@ -90,11 +92,11 @@ export async function POST(req: Request) {
       .eq('id', instanceId);
 
     if (dbError) {
-      console.error('Supabase error:', dbError);
+      console.error('[Supabase Error]:', dbError);
       return NextResponse.json({ success: false, error: dbError.message }, { status: 500 });
     }
 
-    // 2. 1-Click Telegram Webhook Auto-Registration
+    // 2. Register Telegram Webhook directly with Telegram API
     if (trimmedToken) {
       try {
         const appBaseUrl = 'https://autocloud-ai-p448.vercel.app';
@@ -110,7 +112,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. 1-Click Discord Slash Command Registration
+    // 3. Register Discord Commands if Discord token provided
     if (discord_token && discord_public_key) {
       try {
         const appRes = await fetch('https://discord.com/api/v10/oauth2/applications/@me', {
@@ -146,7 +148,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4. Background RAG Vector Indexing (pgvector)
+    // 4. Background Vector Indexing for RAG
     if (knowledgeText.length > 50) {
       (async () => {
         try {
@@ -158,7 +160,7 @@ export async function POST(req: Request) {
               await supabase.from('bot_knowledge_chunks').insert({
                 instance_id: instanceId,
                 content: chunk,
-                url: website_url || '',
+                url: targetUrl,
                 embedding: vector,
               });
             }
@@ -171,7 +173,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error('Registration error:', err);
+    console.error('[Registration Exception]:', err);
     return NextResponse.json({ success: false, error: err.message || 'Internal Server Error' }, { status: 500 });
   }
 }

@@ -74,13 +74,15 @@ function findInternalLinks(html: string, baseUrl: string, maxLinks = 6): string[
 
 export async function POST(req: Request) {
   try {
-    const { url, deepCrawl = true } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const rawUrl = (body.url || body.websiteUrl || body.website_url || '').trim();
+    const deepCrawl = body.deepCrawl !== false;
 
-    if (!url || typeof url !== 'string') {
+    if (!rawUrl || typeof rawUrl !== 'string') {
       return NextResponse.json({ error: 'Valid URL is required' }, { status: 400 });
     }
 
-    let targetUrl = url.trim();
+    let targetUrl = rawUrl;
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
       targetUrl = `https://${targetUrl}`;
     }

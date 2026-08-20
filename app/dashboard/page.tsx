@@ -93,6 +93,16 @@ export default function Dashboard() {
 
     return () => clearInterval(interval);
   }, []);
+  // Pre-fill modal fields with saved instance data whenever the modal opens
+  useEffect(() => {
+    if (keyModalInstance) {
+      const inst = keyModalInstance as any;
+      setUserTelegramToken(inst.bot_token || inst.telegram_token || '');
+      setBusinessInfo(inst.custom_context || inst.knowledge || '');
+      setWebsiteUrl(inst.website_url || inst.target_url || '');
+      setScrapeStatus('');
+    }
+  }, [keyModalInstance]);
 
   const fetchInstances = async () => {
     try {

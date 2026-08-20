@@ -6,29 +6,29 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-// Comprehensive AutoCloud AI Enterprise Knowledge Base & FAQs
+// Comprehensive AutoCloud AI Knowledge Base
 const AUTOCLOUD_KNOWLEDGE_BASE = `
-# AUTOCLOUD AI - OFFICIAL KNOWLEDGE BASE & RULES
+# AUTOCLOUD AI PLATFORM KNOWLEDGE BASE
 
 1. PLATFORM OVERVIEW:
-- AutoCloud AI (autocloud-ai-p448.vercel.app) is an autonomous, 1-click cloud hosting platform for AI agents and support bots.
-- Hosted Bots: Telegram AI Bots, Slack AI Support Bots, Discord Community Bots, and Website Webchat Widgets.
+- AutoCloud AI (https://autocloud-ai-p448.vercel.app) is an autonomous, 1-click cloud hosting platform for AI customer support agents and bots.
+- Supported Channels: Telegram AI Bots, Slack AI Support Bots, Discord Community Bots, and Website Webchat Widgets.
 - Infrastructure: 99.9% uptime, 24/7 continuous cloud execution, zero server management, zero DevOps required.
 
-2. PRICING & BILLING:
-- Pricing: Flat $12/month per bot instance across all platforms (Telegram, Slack, Discord, Webchat).
-- Setup Fees & Hidden Charges: $0. No setup fees, no maintenance fees, and no hidden charges.
-- Billing Provider: Securely processed via LemonSqueezy.
+2. PRICING & FEES:
+- Pricing: Flat $12/month per bot instance across all supported platforms (Telegram, Slack, Discord, Webchat).
+- Setup Fees & Hidden Charges: $0. There are no setup fees, no maintenance fees, and no hidden charges.
+- Free Trial: Paid tier starts at $12/month.
+- Billing: Processed securely via LemonSqueezy.
 
 3. AUTO-TRAINING & SCRAPING:
-- Auto-Scrape: Users can enter any public website URL on the dashboard. AutoCloud AI automatically scrapes and converts website content into an active AI knowledge base.
+- Users can paste any website URL into the dashboard. AutoCloud AI automatically scrapes and converts website content into an active AI knowledge base.
 
-4. CRITICAL SUPPORT & TROUBLESHOOTING RULES:
-- FORGOT PASSWORD / ACCESS: If a user forgot their instance password or lost dashboard access, tell them: "Please email priyamrana069@gmail.com to verify your account and reset your credentials."
-- ACCIDENTALLY DELETED INSTANCE: If a user accidentally deleted their bot instance, tell them: "Please send your billing receipt to priyamrana069@gmail.com along with your query to restore your instance."
-- BILLING & REFUND INQUIRIES: Tell them to email priyamrana069@gmail.com with their LemonSqueezy order ID.
-- HUMAN SUPPORT: For technical escalation or human support, direct them to priyamrana069@gmail.com.
-- OUT-OF-SCOPE: If asked about topics unrelated to AutoCloud AI services (e.g. general trivia, coding tasks outside AutoCloud), politely decline and state you only assist with AutoCloud AI.
+4. SUPPORT & INSTANCE TROUBLESHOOTING:
+- PASSWORD / LOGIN CREDENTIALS RESET: If a user asks how to reset login credentials, forgot password, or lost instance access, reply: "To reset your dashboard login credentials or instance access, please email priyamrana069@gmail.com with your registered email."
+- ACCIDENTALLY DELETED INSTANCE: If a user deleted their bot instance, reply: "If you accidentally deleted your instance, please send your billing receipt to priyamrana069@gmail.com along with your query to restore your instance."
+- HUMAN SUPPORT: For technical escalation or human assistance, email priyamrana069@gmail.com.
+- OUT-OF-SCOPE: For questions unrelated to AutoCloud AI, politely decline and state you only assist with AutoCloud AI.
 `.trim();
 
 export async function POST(req: Request) {
@@ -46,10 +46,10 @@ export async function POST(req: Request) {
     const chatId = msg.chat.id;
     let userText = msg.text.trim();
 
-    // 1. Clean command prefix (/start, bot mentions)
+    // 1. Clean command triggers
     userText = userText.replace(/^\/start(@\w+)?/i, '').replace(/@\w+/g, '').trim();
 
-    // 2. Fetch specific customer deployment & scraped context from Supabase
+    // 2. Fetch specific customer deployment & context from Supabase
     let deployment = null;
     if (instanceId) {
       const res = await supabase.from('deployments').select('*').eq('id', instanceId).maybeSingle();
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     const customContext = deployment?.custom_context?.trim() || '';
     const mergedKnowledge = `${AUTOCLOUD_KNOWLEDGE_BASE}\n\n# CUSTOM INSTANCE CONTEXT:\n${customContext}`.trim();
 
-    // Direct greeting on empty /start
+    // If user sent empty /start command
     if (!userText) {
       await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
         method: 'POST',
@@ -96,35 +96,61 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // 3. Fast-Path Deterministic FAQ Handling
+    // 3. High-Precision Instant Intent Matcher
     const lower = userText.toLowerCase();
     let replyText: string | null = null;
 
-    if (lower.includes('forgot') && (lower.includes('password') || lower.includes('credential') || lower.includes('login'))) {
-      replyText = 'If you forgot your instance password or access credentials, please email priyamrana069@gmail.com to verify your account and reset your access.';
-    } else if ((lower.includes('deleted') || lower.includes('delete')) && lower.includes('instance')) {
+    // Reset password / Login credentials
+    if (
+      (lower.includes('reset') || lower.includes('forgot') || lower.includes('lost') || lower.includes('change')) &&
+      (lower.includes('password') || lower.includes('credential') || lower.includes('login') || lower.includes('account'))
+    ) {
+      replyText = 'To reset your dashboard login credentials or instance access, please email priyamrana069@gmail.com with your registered account details.';
+    }
+    // Accidentally deleted instance
+    else if (
+      (lower.includes('delete') || lower.includes('deleted') || lower.includes('remove') || lower.includes('lost')) &&
+      (lower.includes('instance') || lower.includes('bot') || lower.includes('agent'))
+    ) {
       replyText = 'If you accidentally deleted your instance, please send your billing receipt to priyamrana069@gmail.com along with your query, and our team will restore it for you.';
-    } else if (lower.includes('human') || lower.includes('speak to a person') || lower.includes('real person') || lower.includes('support email')) {
+    }
+    // Hidden fees / setup fees / free trial
+    else if (
+      lower.includes('hidden') ||
+      lower.includes('setup fee') ||
+      lower.includes('extra fee') ||
+      lower.includes('maintenance fee')
+    ) {
+      replyText = 'There are $0 setup fees and no hidden maintenance costs. AutoCloud AI is a flat $12/month per bot instance.';
+    }
+    // Human support / contact person
+    else if (
+      lower.includes('human') ||
+      lower.includes('real person') ||
+      lower.includes('speak to') ||
+      lower.includes('representative') ||
+      lower.includes('support email') ||
+      lower.includes('support mail')
+    ) {
       replyText = 'You can reach human support directly by emailing priyamrana069@gmail.com.';
     }
 
-    // 4. Dynamic AI Generation with Failover Chain
+    // 4. Dynamic LLM Generation (Groq -> Cerebras -> Gemini)
     if (!replyText) {
       const systemPrompt = `
 You are the official customer support AI assistant for "${botName}".
 
-STRICT INSTRUCTIONS:
-1. Answer the user's question directly, accurately, and naturally using ONLY the KNOWLEDGE BASE below.
-2. Keep your answers concise (1 to 2 clear sentences).
-3. If asked about pricing (Telegram, Slack, Discord, Web Chat), state that it is a flat $12/month per bot instance with no hidden setup fees.
-4. If asked how to contact support, provide: priyamrana069@gmail.com.
-5. If the question cannot be answered from the knowledge base, state you can only assist with ${botName} inquiries and direct them to priyamrana069@gmail.com.
+MISSION & RULES:
+1. Answer the user's question directly and concisely (1 to 2 clear sentences).
+2. Only use the KNOWLEDGE BASE provided below.
+3. PRICING: Every bot instance on AutoCloud AI (Slack, Telegram, Discord, Web Chat) is a flat $12/month with $0 setup fees.
+4. If the question cannot be answered from the knowledge base, provide the support email: priyamrana069@gmail.com.
 
 KNOWLEDGE BASE:
 ${mergedKnowledge}
 `.trim();
 
-      // Provider 1: Groq (llama-3.3-70b-versatile)
+      // Provider 1: Groq (llama-3.1-8b-instant - Fast <300ms response)
       const groqKey = process.env.GROQ_API_KEY?.trim();
       if (groqKey) {
         try {
@@ -135,7 +161,7 @@ ${mergedKnowledge}
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              model: 'llama-3.3-70b-versatile',
+              model: 'llama-3.1-8b-instant',
               messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userText },
@@ -148,11 +174,9 @@ ${mergedKnowledge}
           const groqData = await groqRes.json();
           if (groqData.choices?.[0]?.message?.content) {
             replyText = groqData.choices[0].message.content.trim();
-          } else {
-            console.error('[Groq Failure]:', JSON.stringify(groqData));
           }
         } catch (err) {
-          console.error('[Groq Exception]:', err);
+          console.error('[Groq Error]:', err);
         }
       }
 
@@ -180,11 +204,9 @@ ${mergedKnowledge}
           const cerebrasData = await cerebrasRes.json();
           if (cerebrasData.choices?.[0]?.message?.content) {
             replyText = cerebrasData.choices[0].message.content.trim();
-          } else {
-            console.error('[Cerebras Failure]:', JSON.stringify(cerebrasData));
           }
         } catch (err) {
-          console.error('[Cerebras Exception]:', err);
+          console.error('[Cerebras Error]:', err);
         }
       }
 
@@ -209,14 +231,14 @@ ${mergedKnowledge}
           const geminiReply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
           if (geminiReply) replyText = geminiReply;
         } catch (err) {
-          console.error('[Gemini Exception]:', err);
+          console.error('[Gemini Error]:', err);
         }
       }
     }
 
-    // Default response if no model answered
+    // Default safety fallback
     if (!replyText) {
-      replyText = 'AutoCloud AI hosts bots across Slack, Telegram, and Discord for a flat $12/month per instance. For assistance, contact priyamrana069@gmail.com.';
+      replyText = 'AutoCloud AI hosts bots across Slack, Telegram, and Discord for a flat $12/month per instance. For support, contact priyamrana069@gmail.com.';
     }
 
     // 5. Send message back to Telegram

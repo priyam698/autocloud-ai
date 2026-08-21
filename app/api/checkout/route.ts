@@ -1,98 +1,70 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import crypto from 'crypto';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
-const TEMPLATE_NAMES: Record<string, string> = {
-  telegram: 'Telegram AI Bot',
-  'telegram-ai-bot': 'Telegram AI Bot',
-  slack: 'Slack AI Bot',
-  'slack-ai-bot': 'Slack AI Bot',
-  discord: 'Discord AI Bot',
-  'discord-ai-bot': 'Discord AI Bot',
-  webchat: 'Web Chat Widget',
-  'webchat-ai-bot': 'Web Chat Widget',
-  // Legacy fallbacks
-  'n8n-workflow': 'n8n Workflow Automation',
-  'langchain-runner': 'LangChain & CrewAI Runner',
-};
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    'placeholder-key';
+  return createClient(url, key);
+}
 
 export async function POST(req: Request) {
   try {
+    const supabase = getSupabaseClient();
     const body = await req.json().catch(() => ({}));
-    const { templateId } = body;
+    const { variantId, customData, userEmail } = body;
 
-    const selectedTemplate = (templateId || 'telegram').toLowerCase();
-    const instanceName = TEMPLATE_NAMES[selectedTemplate] || 'Universal AI Bot';
-    const accessPassword = crypto.randomBytes(6).toString('hex');
+    const apiKey = process.env.LEMONSQUEEZY_API_KEY?.trim();
+    const storeId = process.env.LEMONSQUEEZY_STORE_ID?.trim();
 
-    // 1. Create exactly 1 instance record in Supabase right away with dynamic name
-    const { data: instanceData, error: dbError } = await supabase
-      .from('deployments')
-      .insert([
-        {
-          name: instanceName,
-          template_id: selectedTemplate,
-          access_password: accessPassword,
-          is_enabled: true,
-        },
-      ])
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('[Checkout DB Error]:', dbError);
-      return NextResponse.json(
-        { success: false, error: dbError.message },
-        { status: 500 }
-      );
-    }
-
-    // 2. Request LemonSqueezy Checkout URL
-    const apiKey = process.env.LEMONSQUEEZY_API_KEY;
-    const storeId = process.env.LEMONSQUEEZY_STORE_ID;
-    const variantId = process.env.LEMONSQUEEZY_VARIANT_ID;
-
-    if (!apiKey || !storeId || !variantId) {
-      // Fallback: If LemonSqueezy keys are missing, take user directly to dashboard
+    if (!apiKey || !storeId) {
       return NextResponse.json({
         success: true,
-        url: '/dashboard',
-        redirectUrl: '/dashboard',
+        url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/dashboard?status=mock_checkout_success`,
+        redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/dashboard?status=mock_checkout_success`,
       });
     }
 
-    const response = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
+    const res = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
       method: 'POST',
       headers: {
-        Accept: 'application/vnd.api+json',
-        'Content-Type': 'application/vnd.api+json',
         Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/vnd.api+json',
+        Accept: 'application/vnd.api+json',
       },
       body: JSON.stringify({
         data: {
           type: 'checkouts',
           attributes: {
             checkout_data: {
-              custom: {
-                instance_id: instanceData.id,
-                template_id: selectedTemplate,
-              },
+              email: userEmail || undefined,
+              custom: customData || {},
             },
           },
           relationships: {
-            store: { data: { type: 'stores', id: storeId.toString() } },
-            variant: { data: { type: 'variants', id: variantId.toString() } },
+            store: {
+              data: {
+                type: 'stores',
+                id: storeId.toString(),
+              },
+            },
+            variant: {
+              data: {
+                type: 'variants',
+                id: (variantId || process.env.LEMONSQUEEZY_VARIANT_ID || '1').toString(),
+              },
+            },
           },
         },
       }),
     });
 
-    const resData = await response.json();
+    const resData = await res.json().catch(() => null);
     const checkoutUrl = resData?.data?.attributes?.url;
 
     return NextResponse.json({

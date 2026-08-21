@@ -1,71 +1,54 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
-// Helper: Split text into 500-token chunks with 50-token overlap
-function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
-  const chunks: string[] = [];
-  let start = 0;
-  while (start < text.length) {
-    chunks.push(text.slice(start, start + chunkSize));
-    start += chunkSize - overlap;
-  }
-  return chunks;
-}
-
-// Helper: Generate embedding vector via Gemini
-async function getEmbedding(text: string): Promise<number[]> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY1;
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'models/text-embedding-004',
-        content: { parts: [{ text }] },
-      }),
-    }
-  );
-  const data = await res.json();
-  return data.embedding.values;
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    'placeholder-key';
+  return createClient(url, key);
 }
 
 export async function POST(req: Request) {
   try {
-    const { instanceId, rawContent, url } = await req.json();
+    const supabase = getSupabase();
+    const body = await req.json().catch(() => ({}));
+    const { url, content, instanceId } = body;
 
-    if (!instanceId || !rawContent) {
-      return NextResponse.json({ error: 'Missing instanceId or content' }, { status: 400 });
+    if (!url && !content) {
+      return NextResponse.json(
+        { success: false, error: 'URL or content is required' },
+        { status: 400 }
+      );
     }
 
-    // 1. Clear old chunks for this instance
-    await supabase.from('bot_knowledge_chunks').delete().eq('instance_id', instanceId);
+    const { data, error } = await supabase
+      .from('knowledge_sources')
+      .insert([
+        {
+          url: url || null,
+          content: content || null,
+          instance_id: instanceId || null,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select();
 
-    // 2. Chunk full scraped website content
-    const textChunks = chunkText(rawContent);
-
-    // 3. Convert all chunks to vector embeddings and store in Supabase
-    for (const chunk of textChunks) {
-      const vector = await getEmbedding(chunk);
-      await supabase.from('bot_knowledge_chunks').insert({
-        instance_id: instanceId,
-        content: chunk,
-        url: url || '',
-        embedding: vector,
-      });
+    if (error) {
+      console.error('[Scrape RAG Insert Error]:', error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({
-      success: true,
-      totalChunks: textChunks.length,
-      message: `Indexed ${textChunks.length} chunks into RAG database`,
-    });
+    return NextResponse.json({ success: true, data });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('[Scrape RAG Server Error]:', err);
+    return NextResponse.json(
+      { success: false, error: err.message || 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }

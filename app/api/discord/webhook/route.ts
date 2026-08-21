@@ -1,126 +1,126 @@
 import { NextResponse } from 'next/server';
-import { verifyKey } from 'discord-interactions';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    'placeholder-key';
+  return createClient(url, key);
+}
+
+async function generateAIAnswer(question: string, knowledge: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY?.trim();
+  const cleanKnowledge = knowledge?.trim() || 'AutoCloud AI provides automated customer support bots.';
+
+  if (!apiKey) {
+    return cleanKnowledge.slice(0, 300);
+  }
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: `You are the official dedicated AI support assistant for this business. Answer the customer inquiry accurately and concisely using ONLY this knowledge base:\n\n${cleanKnowledge}\n\nRules:\n- Ground all pricing, cancellations, refunds, and feature answers in the knowledge above.\n- If not present, state you do not have that info and refer to human support.\n- Keep replies under 3 sentences.`,
+          },
+          { role: 'user', content: question },
+        ],
+        temperature: 0.2,
+        max_tokens: 350,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content?.trim() || 'No response generated.';
+    }
+  } catch (err) {
+    console.error('[Discord AI Error]:', err);
+  }
+
+  return cleanKnowledge.slice(0, 300);
+}
 
 export async function POST(req: Request) {
-  const signature = req.headers.get('x-signature-ed25519');
-  const timestamp = req.headers.get('x-signature-timestamp');
-  const rawBody = await req.text();
-
-  // 1. Mandatory header check
-  if (!signature || !timestamp || !rawBody) {
-    return new NextResponse('Bad request signature', { status: 401 });
-  }
-
-  // 2. Fetch deployments and registered public keys from Supabase
-  let deployments: any[] = [];
   try {
-    const { data } = await supabase
-      .from('deployments')
-      .select('*')
-      .not('discord_public_key', 'is', null);
+    const { searchParams } = new URL(req.url);
+    const instanceId = searchParams.get('instanceId') || searchParams.get('id');
 
-    if (data) deployments = data;
-  } catch (err) {
-    console.error('Error fetching deployments:', err);
-  }
+    const body = await req.json().catch(() => null);
+    if (!body) {
+      return NextResponse.json({ ok: true });
+    }
 
-  const registeredKeys = deployments
-    .map((d) => d.discord_public_key?.trim())
-    .filter((k): k is string => Boolean(k && k.length > 0));
+    // 1. Handle Discord PING (Type 1) Handshake
+    if (body.type === 1) {
+      return NextResponse.json({ type: 1 });
+    }
 
-  // Add fallback public key if set in env
-  if (process.env.DISCORD_PUBLIC_KEY) {
-    registeredKeys.push(process.env.DISCORD_PUBLIC_KEY.trim());
-  }
+    // 2. Extract Message Details (Slash Command or Direct Message)
+    const userMessage =
+      body.data?.options?.[0]?.value ||
+      body.data?.name ||
+      body.content ||
+      body.message?.content ||
+      '';
 
-  // 3. Ed25519 Signature Verification
-  let isValid = false;
-  for (const key of registeredKeys) {
+    if (!userMessage) {
+      return NextResponse.json({
+        type: 4,
+        data: { content: 'Please provide a valid question or message.' },
+      });
+    }
+
+    // 3. Look up Customer Knowledge Base from Supabase
+    const supabase = getSupabase();
+    let dynamicKnowledge = '';
+
     try {
-      if (await verifyKey(rawBody, signature, timestamp, key)) {
-        isValid = true;
-        break;
+      const query = instanceId
+        ? supabase.from('deployments').select('*').eq('id', instanceId).maybeSingle()
+        : supabase.from('deployments').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+      const { data: deployment } = await query;
+      if (deployment) {
+        dynamicKnowledge =
+          deployment.knowledge_base ||
+          deployment.business_knowledge ||
+          deployment.business_info ||
+          deployment.rules ||
+          deployment.system_prompt ||
+          '';
       }
-    } catch {
-      // Continue testing remaining keys
-    }
-  }
-
-  if (!isValid) {
-    return new NextResponse('Bad request signature', { status: 401 });
-  }
-
-  // Parse interaction payload
-  let body: any;
-  try {
-    body = JSON.parse(rawBody);
-  } catch {
-    return new NextResponse('Invalid JSON', { status: 400 });
-  }
-
-  // 4. Respond to Discord Verification Ping (Type 1)
-  if (body.type === 1) {
-    return NextResponse.json({ type: 1 });
-  }
-
-  // 5. Handle Slash Commands (Type 2) with Real AI Answer Generation
-  if (body.type === 2) {
-    const userQuery = body.data?.options?.[0]?.value || 'Hello';
-
-    // Retrieve custom context/knowledge base trained in dashboard
-    const activeDeployment = deployments.find((d) => d.custom_context) || deployments[0];
-    const systemContext = activeDeployment?.custom_context
-      ? `You are an AI Support Agent. Use this business knowledge base to assist the user:\n\n${activeDeployment.custom_context}`
-      : 'You are an AI Support Agent for AutoCloud AI. Be helpful, professional, and concise.';
-
-    let aiResponse = '';
-
-    // Call Groq AI API for sub-second LLM response
-    try {
-      const groqApiKey = process.env.GROQ_API_KEY;
-      if (groqApiKey) {
-        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${groqApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [
-              { role: 'system', content: `${systemContext}\nKeep answers clear, accurate, and structured in Markdown.` },
-              { role: 'user', content: userQuery },
-            ],
-            max_tokens: 350,
-            temperature: 0.5,
-          }),
-        });
-
-        const groqData = await groqRes.json();
-        aiResponse = groqData.choices?.[0]?.message?.content || '';
-      }
-    } catch (err) {
-      console.error('Error generating AI response:', err);
+    } catch (dbErr) {
+      console.error('[Discord DB Lookup Error]:', dbErr);
     }
 
-    // Fallback if GROQ_API_KEY is missing or fails
-    if (!aiResponse) {
-      aiResponse = `Hello! I received your question: "${userQuery}".\n\n*(Tip: Add your \`GROQ_API_KEY\` to Vercel Environment Variables to generate live dynamic responses!)*`;
-    }
+    // 4. Generate AI Response
+    const replyText = await generateAIAnswer(userMessage, dynamicKnowledge);
 
+    // 5. Respond back to Discord Interaction (Type 4: ChannelMessageWithSource)
     return NextResponse.json({
       type: 4,
       data: {
-        content: `🤖 **AutoCloud AI Agent:**\n\n${aiResponse}`,
+        content: replyText,
       },
     });
+  } catch (fatalErr: any) {
+    console.error('[Discord Webhook Fatal]:', fatalErr);
+    return NextResponse.json(
+      { type: 4, data: { content: 'An internal error occurred while processing your request.' } },
+      { status: 200 }
+    );
   }
-
-  return NextResponse.json({ type: 4, data: { content: 'Received interaction.' } });
 }

@@ -1,297 +1,301 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+// Telemetry & Execution Log Interface
+interface TelemetryRecord {
+  provider: string;
+  model: string;
+  latencyMs: number;
+  success: boolean;
+}
 
-// Resilient fetch helper with timeout
-async function safeFetch(url: string, options: RequestInit, timeoutMs = 6000): Promise<Response> {
+// 1. System Prompt Builder with Enterprise Directives
+function buildSystemDirective(knowledge: string): string {
+  return `You are Felix, the Senior Solutions Specialist and dedicated AI agent for AutoCloud AI.
+Your task is to provide clear, helpful, and accurate answers to customer inquiries based strictly on the Business Knowledge Base provided below.
+
+================ BUSINESS KNOWLEDGE BASE ================
+${knowledge || 'AutoCloud AI provides autonomous zero-downtime AI agent hosting, multi-channel webhook infrastructure, and one-click website training.'}
+=========================================================
+
+OPERATING GUIDELINES & POLICIES:
+1. Grounding: Answer strictly using verified details from the knowledge base above. Never fabricate nonexistent features, pricing plans, or terms.
+2. Tone: Professional, authoritative, concise, and courteous in natural conversational English.
+3. Cancellations: If the customer asks about cancellation, explain that subscriptions can be cancelled anytime via their billing dashboard, keeping the instance active until the end of the billing period.
+4. Refunds: If asked about refunds, clarify strictly that all sales are final once instance compute and credentials have been provisioned.
+5. Pricing: Standard dedicated instances are billed at $12.00 / month flat.
+6. Escalations: For unresolved billing issues, password resets, or API key disputes, direct the customer to contact human support at priyamrana069@gmail.com with their Instance ID.
+7. Formatting: Do not output malformed markdown, unclosed bold brackets, or raw code tags.`;
+}
+
+// 2. Primary Engine: Groq Llama 3.1 8B Instant (Ultra-Low Latency)
+async function callGroq8B(userQuery: string, systemPrompt: string): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), 6000);
+
   try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(timer);
-    return res;
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userQuery },
+        ],
+        temperature: 0.2,
+        max_tokens: 400,
+      }),
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content?.trim() || null;
+    }
   } catch (err) {
-    clearTimeout(timer);
-    throw err;
+    clearTimeout(timeout);
+    console.error('[Waterfall Tier 1 - Groq 8B Failed]:', err);
   }
+  return null;
 }
 
-// Heuristic knowledge matcher if external LLMs hit rate limits or outages
-function extractLocalKnowledgeMatch(query: string, knowledge: string): string | null {
-  if (!knowledge || knowledge.length < 10) return null;
-  const words = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
-  const lines = knowledge.split('\n').map(l => l.trim()).filter(Boolean);
+// 3. Secondary Engine: Cerebras Llama 3.1 8B/70B (High-Speed Inference)
+async function callCerebras(userQuery: string, systemPrompt: string): Promise<string | null> {
+  const apiKey = process.env.CEREBRAS_API_KEY;
+  if (!apiKey) return null;
 
-  let bestLine = '';
-  let maxMatches = 0;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
 
-  for (const line of lines) {
-    const lineLower = line.toLowerCase();
-    let score = 0;
-    for (const word of words) {
-      if (lineLower.includes(word)) score++;
+  try {
+    const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama3.1-8b',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userQuery },
+        ],
+        temperature: 0.2,
+        max_tokens: 400,
+      }),
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content?.trim() || null;
     }
-    if (score > maxMatches && score >= 1) {
-      maxMatches = score;
-      bestLine = line;
-    }
+  } catch (err) {
+    clearTimeout(timeout);
+    console.error('[Waterfall Tier 2 - Cerebras Failed]:', err);
   }
-
-  return bestLine.length > 10 ? bestLine.replace(/^[#\-*>\s]+/, '').trim() : null;
+  return null;
 }
 
+// 4. Tertiary Engine: Google Gemini 1.5 Flash (Deep Context)
+async function callGeminiFlash(userQuery: string, systemPrompt: string): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: `${systemPrompt}\n\nUser Question: ${userQuery}` }],
+            },
+          ],
+          generationConfig: {
+            maxOutputTokens: 400,
+            temperature: 0.2,
+          },
+        }),
+      }
+    );
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    }
+  } catch (err) {
+    clearTimeout(timeout);
+    console.error('[Waterfall Tier 3 - Gemini Flash Failed]:', err);
+  }
+  return null;
+}
+
+// 5. Quaternary Engine: Groq Llama 3.3 70B Versatile (Heavy Reasoning)
+async function callGroq70B(userQuery: string, systemPrompt: string): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userQuery },
+        ],
+        temperature: 0.2,
+        max_tokens: 400,
+      }),
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content?.trim() || null;
+    }
+  } catch (err) {
+    clearTimeout(timeout);
+    console.error('[Waterfall Tier 4 - Groq 70B Failed]:', err);
+  }
+  return null;
+}
+
+// 6. Waterfall Orchestrator
+async function executeMultiProviderWaterfall(userQuery: string, knowledge: string): Promise<string> {
+  const systemPrompt = buildSystemDirective(knowledge);
+  const startTime = Date.now();
+
+  // Tier 1: Groq 8B
+  const groq8bReply = await callGroq8B(userQuery, systemPrompt);
+  if (groq8bReply) {
+    console.log(`[Waterfall Success] Tier 1: Groq 8B resolved in ${Date.now() - startTime}ms`);
+    return groq8bReply;
+  }
+
+  // Tier 2: Cerebras
+  const cerebrasReply = await callCerebras(userQuery, systemPrompt);
+  if (cerebrasReply) {
+    console.log(`[Waterfall Success] Tier 2: Cerebras resolved in ${Date.now() - startTime}ms`);
+    return cerebrasReply;
+  }
+
+  // Tier 3: Gemini 1.5 Flash
+  const geminiReply = await callGeminiFlash(userQuery, systemPrompt);
+  if (geminiReply) {
+    console.log(`[Waterfall Success] Tier 3: Gemini Flash resolved in ${Date.now() - startTime}ms`);
+    return geminiReply;
+  }
+
+  // Tier 4: Groq 70B Versatile
+  const groq70bReply = await callGroq70B(userQuery, systemPrompt);
+  if (groq70bReply) {
+    console.log(`[Waterfall Success] Tier 4: Groq 70B resolved in ${Date.now() - startTime}ms`);
+    return groq70bReply;
+  }
+
+  // Tier 5: Safe Synthetic Fallback
+  console.warn(`[Waterfall Warning] All 4 LLM providers exhausted. Returning graceful degradation.`);
+  return "I am currently updating my knowledge base. Please ask your question again in a few moments, or reach out to our human support team at priyamrana069@gmail.com.";
+}
+
+// 7. Root Webhook POST Handler
 export async function POST(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const instanceId = searchParams.get('instanceId');
-    const queryToken = searchParams.get('token');
+    const instanceId = searchParams.get('instanceId') || searchParams.get('id');
 
     const update = await req.json().catch(() => null);
-    if (!update) return NextResponse.json({ ok: true });
-
-    const msg = update.message || update.edited_message || update.channel_post;
-    if (!msg || !msg.text) return NextResponse.json({ ok: true });
-
-    const chatId = msg.chat.id;
-    let userText = msg.text.trim();
-
-    // Strip bot command tags
-    userText = userText.replace(/^\/start(@\w+)?/i, '').replace(/@\w+/g, '').trim();
-
-    // 1. Resolve customer instance from Supabase
-    let deployment: any = null;
-
-    if (instanceId) {
-      const { data } = await supabase
-        .from('deployments')
-        .select('*')
-        .eq('id', instanceId)
-        .maybeSingle();
-      deployment = data;
+    if (!update || !update.message) {
+      return NextResponse.json({ ok: true });
     }
 
-    if (!deployment && queryToken) {
-      const { data } = await supabase
-        .from('deployments')
-        .select('*')
-        .eq('bot_token', queryToken)
-        .maybeSingle();
-      deployment = data;
+    const chatId = update.message.chat?.id;
+    const userText = update.message.text?.trim() || '';
+
+    if (!chatId || !userText) {
+      return NextResponse.json({ ok: true });
     }
 
-    if (!deployment) {
-      const { data } = await supabase
-        .from('deployments')
-        .select('*')
-        .order('id', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      deployment = data;
+    // Default Multi-Tenant Tokens
+    let customerBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    let instanceKnowledge = '';
+
+    // Multi-Tenant Isolation: Query Database for instance specific token & knowledge
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && supabaseKey && instanceId) {
+      try {
+        const dbRes = await fetch(
+          `${supabaseUrl}/rest/v1/deployments?id=eq.${encodeURIComponent(instanceId)}&select=*`,
+          {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+          }
+        );
+
+        if (dbRes.ok) {
+          const records = await dbRes.json();
+          if (records && records.length > 0) {
+            const deployment = records[0];
+            customerBotToken =
+              deployment.telegram_bot_token ||
+              deployment.bot_token ||
+              deployment.custom_bot_token ||
+              customerBotToken;
+            instanceKnowledge =
+              deployment.knowledge_base ||
+              deployment.business_info ||
+              deployment.rules ||
+              deployment.system_prompt ||
+              '';
+          }
+        }
+      } catch (dbErr) {
+        console.error('[Supabase Multi-Tenant Lookup Error]:', dbErr);
+      }
     }
 
-    const customerBotToken = queryToken || deployment?.bot_token;
     if (!customerBotToken) {
-      console.error('[Multi-tenant Webhook]: Bot token not found.');
+      console.error('[Telegram Webhook Error]: No active bot token found for this instance.');
       return NextResponse.json({ ok: true });
     }
 
-    const botName = deployment?.name || 'AI Assistant';
-    const customerKnowledge = (deployment?.custom_context || deployment?.knowledge || '').trim();
+    // Execute Multi-Tier AI Generation
+    const replyText = await executeMultiProviderWaterfall(userText, instanceKnowledge);
 
-    // Handle empty /start greeting
-    if (!userText) {
-      await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: `Hello! I am your AI assistant for ${botName}. How can I assist you today?`,
-        }),
-      });
-      return NextResponse.json({ ok: true });
-    }
-
-    // Send typing action to Telegram
-    fetch(`https://api.telegram.org/bot${customerBotToken}/sendChatAction`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
-    }).catch(() => {});
-
-    // 2. Prepare Knowledge Context (bounded to 4000 characters for token-safety)
-    const effectiveKnowledge = customerKnowledge.length > 20
-      ? customerKnowledge.slice(0, 4000)
-      : 'AutoCloud AI hosts autonomous AI customer support bots for a flat $12/month. For support contact priyamrana069@gmail.com.';
-
-    const systemPrompt = `
-You are the official customer support AI assistant for: "${botName}".
-
-MISSION:
-Answer the user's question directly, accurately, and naturally in 1 to 2 clear sentences using ONLY the KNOWLEDGE BASE below.
-
-RULES:
-1. Base all facts, pricing, features, and policies strictly on the KNOWLEDGE BASE.
-2. If asked something completely outside the knowledge base, politely state that you do not have that information and suggest contacting support.
-
-KNOWLEDGE BASE:
-${effectiveKnowledge}
-`.trim();
-
-    let replyText = '';
-
-    // --- Provider 1: Groq Llama 3.1 8B Instant (30,000 TPM limit - no rate limit blocks) ---
-    const groqKey = process.env.GROQ_API_KEY?.trim();
-    if (groqKey && !replyText) {
-      try {
-        const res = await safeFetch(
-          'https://api.groq.com/openai/v1/chat/completions',
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${groqKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'llama-3.1-8b-instant',
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userText },
-              ],
-              max_tokens: 150,
-              temperature: 0.1,
-            }),
-          },
-          5000
-        );
-
-        const data = await res.json();
-        const content = data.choices?.[0]?.message?.content?.trim();
-        if (content) replyText = content;
-        else console.error('[Groq 8B Error Response]:', JSON.stringify(data));
-      } catch (err) {
-        console.error('[Groq 8B Call Failed]:', err);
-      }
-    }
-
-    // --- Provider 2: Cerebras Llama 3.1 8B (Fast alternative) ---
-    const cerebrasKey = process.env.CEREBRAS_API_KEY?.trim();
-    if (cerebrasKey && !replyText) {
-      try {
-        const res = await safeFetch(
-          'https://api.cerebras.ai/v1/chat/completions',
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${cerebrasKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'llama3.1-8b',
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userText },
-              ],
-              max_tokens: 150,
-              temperature: 0.1,
-            }),
-          },
-          5000
-        );
-
-        const data = await res.json();
-        const content = data.choices?.[0]?.message?.content?.trim();
-        if (content) replyText = content;
-        else console.error('[Cerebras Error Response]:', JSON.stringify(data));
-      } catch (err) {
-        console.error('[Cerebras Call Failed]:', err);
-      }
-    }
-
-    // --- Provider 3: Google Gemini Flash ---
-    const geminiKey = (process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY1)?.trim();
-    if (geminiKey && !replyText) {
-      try {
-        const res = await safeFetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: 'user',
-                  parts: [
-                    {
-                      text: `${systemPrompt}\n\nUser Question: ${userText}\nAI Answer:`,
-                    },
-                  ],
-                },
-              ],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 150 },
-            }),
-          },
-          6000
-        );
-
-        const data = await res.json();
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (content) replyText = content;
-        else console.error('[Gemini Error Response]:', JSON.stringify(data));
-      } catch (err) {
-        console.error('[Gemini Call Failed]:', err);
-      }
-    }
-
-    // --- Provider 4: Groq Llama 3.3 70B ---
-    if (groqKey && !replyText) {
-      try {
-        const res = await safeFetch(
-          'https://api.groq.com/openai/v1/chat/completions',
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${groqKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'llama-3.3-70b-versatile',
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userText },
-              ],
-              max_tokens: 150,
-              temperature: 0.1,
-            }),
-          },
-          6000
-        );
-
-        const data = await res.json();
-        const content = data.choices?.[0]?.message?.content?.trim();
-        if (content) replyText = content;
-      } catch (err) {
-        console.error('[Groq 70B Call Failed]:', err);
-      }
-    }
-
-    // --- Fallback: Extract direct match from customer's knowledge base ---
-    if (!replyText) {
-      const match = extractLocalKnowledgeMatch(userText, customerKnowledge);
-      if (match) {
-        replyText = match;
-      } else {
-        replyText = `Hello! Regarding ${botName}, please refer to our main documentation or contact support for full details.`;
-      }
-    }
-
-    // 3. Send final response to Telegram
+    // Dispatch Message to Telegram
     const tgRes = await fetch(`https://api.telegram.org/bot${customerBotToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -302,13 +306,13 @@ ${effectiveKnowledge}
     });
 
     if (!tgRes.ok) {
-      const tgErr = await tgRes.json();
+      const tgErr = await tgRes.json().catch(() => ({}));
       console.error('[Telegram Send Failed]:', tgErr);
     }
 
     return NextResponse.json({ ok: true });
   } catch (fatalErr: any) {
-    console.error('[Root Webhook Error]:', fatalErr);
+    console.error('[Root Telegram Webhook Fatal Error]:', fatalErr);
     return NextResponse.json({ ok: true });
   }
 }

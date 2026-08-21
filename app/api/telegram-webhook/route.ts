@@ -4,36 +4,78 @@ import { createClient } from '@supabase/supabase-js';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
+// Safe runtime Supabase client initialization
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_KEY ||
     'placeholder-key';
   return createClient(url, key);
 }
 
-// 1. Groq AI Inference
-async function generateTelegramReply(userMessage: string, knowledge: string): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
+// Fallback rule engine if API connection drops
+function executeRuleEngine(question: string, rawKnowledge: string): string {
+  const q = question.toLowerCase();
 
-  if (!apiKey) {
-    console.error('[Groq Error]: Missing GROQ_API_KEY in environment');
-    return knowledge || 'Please contact our team directly for further details.';
+  // If knowledge is present, scan for highest matching line
+  if (rawKnowledge && rawKnowledge.trim().length > 0) {
+    const lines = rawKnowledge
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 5);
+
+    const words = q.split(/\s+/).filter(w => w.length > 2);
+    let bestLine = '';
+    let bestScore = 0;
+
+    for (const line of lines) {
+      const lineLower = line.toLowerCase();
+      let matches = 0;
+      for (const word of words) {
+        if (lineLower.includes(word)) matches++;
+      }
+      if (matches > bestScore) {
+        bestScore = matches;
+        bestLine = line;
+      }
+    }
+
+    if (bestLine && bestScore > 0) {
+      return bestLine;
+    }
   }
 
-  const systemPrompt = `You are the official dedicated AI customer support assistant for this business.
-Answer the user's question directly, accurately, and politely using ONLY the business knowledge base below.
+  // Built-in platform defaults
+  if (q.includes('cost') || q.includes('price') || q.includes('much') || q.includes('rate')) {
+    return 'A dedicated bot instance costs $12 per month with full 24/7 autonomous support.';
+  }
+  if (q.includes('cancel') || q.includes('delete') || q.includes('stop')) {
+    return 'You can cancel or remove your monthly active deployment anytime directly from your dashboard under Instance Settings.';
+  }
+  if (q.includes('company') || q.includes('name') || q.includes('who are you')) {
+    return 'We are AutoCloud AI, providing autonomous AI customer support bots for Telegram, Discord, and WhatsApp.';
+  }
 
-================ CUSTOMER BUSINESS KNOWLEDGE ================
-${knowledge}
-============================================================
+  return rawKnowledge.slice(0, 200) || 'How can I assist you with your business today?';
+}
+
+// Groq AI inference engine
+async function queryGroqLLM(userQuestion: string, knowledgeText: string, botName: string = 'Assistant'): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const systemInstructions = `You are ${botName}, the official dedicated AI customer support assistant for this business.
+
+================ KNOWLEDGE BASE ================
+${knowledgeText}
+================================================
 
 RULES:
-1. Base all answers (pricing, company name, features, cancellations, refund policy) strictly on the knowledge above.
-2. If the answer is in the text above, state it clearly in 1-3 conversational sentences.
-3. If the knowledge base is completely empty or does not contain the answer, politely let them know and provide support contact information.`;
+1. Answer the customer's question directly, accurately, and politely using ONLY the knowledge base above.
+2. Ground all pricing, cancellation procedures, company details, and feature explanations strictly in the knowledge base.
+3. If the knowledge base does not contain the answer, politely provide the support contact information.
+4. Keep all responses clear, conversational, and under 3 sentences.`;
 
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -45,33 +87,32 @@ RULES:
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
+          { role: 'system', content: systemInstructions },
+          { role: 'user', content: userQuestion },
         ],
-        temperature: 0.2,
+        temperature: 0.1,
         max_tokens: 350,
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
-      const text = data.choices?.[0]?.message?.content?.trim();
-      if (text) return text;
+      const content = data.choices?.[0]?.message?.content?.trim();
+      if (content) return content;
     } else {
-      console.error('[Groq API Call Failed]:', res.status, await res.text());
+      console.error('[Groq Error Code]:', res.status, await res.text());
     }
   } catch (err) {
-    console.error('[Groq Network Exception]:', err);
+    console.error('[Groq Network Error]:', err);
   }
 
-  return knowledge || 'Thank you for reaching out! Please contact our support team directly.';
+  return null;
 }
 
 export async function POST(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const instanceId = searchParams.get('instanceId') || searchParams.get('id');
-    const tokenParam = searchParams.get('token');
 
     const update = await req.json().catch(() => null);
     if (!update || !update.message) {
@@ -85,77 +126,58 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    let botToken = tokenParam || process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_SUPPORT_BOT_TOKEN || '';
-    let customerKnowledge = '';
+    let botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_SUPPORT_BOT_TOKEN || '';
+    let businessKnowledge = '';
+    let botName = 'Felix';
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseClient();
 
-    // Look up the customer's saved knowledge base from Supabase
+    // 1. Fetch deployment record from Supabase
     try {
-      // 1. Try 'deployments' table
-      let { data: records, error } = await supabase
-        .from('deployments')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error || !records || records.length === 0) {
-        // 2. Fallback to 'instances' table if deployments is empty
-        const fallbackRes = await supabase.from('instances').select('*').order('created_at', { ascending: false });
-        records = fallbackRes.data;
+      let query = supabase.from('deployments').select('*');
+      if (instanceId) {
+        query = query.eq('id', instanceId);
+      } else {
+        query = query.order('updated_at', { ascending: false }).limit(1);
       }
 
-      if (records && records.length > 0) {
-        // Find matching record by instanceId or botToken, otherwise take latest
-        let row = records[0];
-        if (instanceId) {
-          const found = records.find((r: any) => r.id === instanceId || r.instance_id === instanceId);
-          if (found) row = found;
-        } else if (botToken) {
-          const found = records.find((r: any) => r.telegram_bot_token === botToken || r.bot_token === botToken);
-          if (found) row = found;
-        }
-
-        botToken = row.telegram_bot_token || row.bot_token || row.custom_bot_token || botToken;
-        customerKnowledge =
-          row.knowledge_base ||
-          row.business_knowledge ||
-          row.business_info ||
-          row.knowledge ||
-          row.content ||
-          row.rules ||
-          row.system_prompt ||
-          row.prompt ||
-          '';
-
-        console.log(`[Supabase Loaded] Row ID: ${row.id} | Knowledge Length: ${customerKnowledge.length} chars`);
-      } else {
-        console.warn('[Supabase Warning]: No deployment records found in database');
+      const { data: records, error } = await query;
+      if (!error && records && records.length > 0) {
+        const row = records[0];
+        botToken = row.telegram_bot_token || botToken;
+        businessKnowledge = row.knowledge_base || '';
+        botName = row.bot_name || botName;
       }
     } catch (dbErr) {
       console.error('[Supabase Fetch Exception]:', dbErr);
     }
 
     if (!botToken) {
-      console.error('[Telegram Fatal]: No valid bot token found');
+      console.error('[Telegram Webhook]: Missing bot token');
       return NextResponse.json({ ok: true });
     }
 
-    // Generate response with Groq using the extracted knowledge
-    const finalAnswer = await generateTelegramReply(userMessage, customerKnowledge);
+    // 2. Generate response via Groq AI
+    let replyText = await queryGroqLLM(userMessage, businessKnowledge, botName);
 
-    // Send answer back to Telegram
+    // 3. Fallback to direct knowledge rule engine if Groq is unavailable
+    if (!replyText) {
+      replyText = executeRuleEngine(userMessage, businessKnowledge);
+    }
+
+    // 4. Dispatch reply directly to Telegram chat
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: finalAnswer,
+        text: replyText,
       }),
     });
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    console.error('[Telegram Webhook Fatal]:', err);
+  } catch (fatalErr: any) {
+    console.error('[Telegram Webhook Fatal]:', fatalErr);
     return NextResponse.json({ ok: true });
   }
 }

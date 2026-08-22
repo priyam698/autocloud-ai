@@ -5,13 +5,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_KEY ||
-    'placeholder-key';
-  return createClient(url, key);
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 }
 
 export async function POST(req: Request) {
@@ -22,81 +19,74 @@ export async function POST(req: Request) {
       id,
       knowledge_base,
       knowledge,
+      knowledgeBase,
       telegram_bot_token,
       bot_token,
+      telegramToken,
       bot_name,
+      botName,
     } = body;
 
     const targetId = instanceId || id;
-    const knowledgeText = knowledge_base !== undefined ? knowledge_base : knowledge;
-    const token = telegram_bot_token || bot_token;
+    const knowledgeText = knowledge_base ?? knowledge ?? knowledgeBase ?? '';
+    const token = (telegram_bot_token || bot_token || telegramToken || '').trim();
+    const name = bot_name || botName || 'AI Assistant';
 
-    if (!targetId) {
-      return NextResponse.json(
-        { success: false, error: 'Instance ID is required' },
-        { status: 400 }
-      );
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Telegram Bot Token is required.' }, { status: 400 });
     }
 
     const supabase = getSupabase();
 
-    // 1. Prepare data payload
-    const updatePayload: Record<string, any> = {
-      updated_at: new Date().toISOString(),
+    // 1. Upsert customer's bot instance into Supabase
+    const payload = {
+      telegram_token: token,
+      knowledge_base: knowledgeText,
+      bot_name: name,
+      status: 'active',
+      updated_at: new Date().toISOString()
     };
 
-    if (knowledgeText !== undefined) updatePayload.knowledge_base = String(knowledgeText);
-    if (token) updatePayload.telegram_bot_token = String(token).trim();
-    if (bot_name) updatePayload.bot_name = String(bot_name).trim();
-
-    // 2. Fetch existing record (or match by ID/prefix)
-    const { data: allRecords } = await supabase.from('deployments').select('*');
-    let matchedRecord = allRecords?.find(
-      (r: any) =>
-        r.id === targetId ||
-        (typeof r.id === 'string' && r.id.toLowerCase().startsWith(targetId.toLowerCase()))
-    );
-
-    let finalId = matchedRecord ? matchedRecord.id : targetId;
-
-    const { data: updatedData, error: dbError } = await supabase
-      .from('deployments')
-      .upsert({ id: finalId, ...updatePayload })
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('[Configure API] DB Error:', dbError);
-      return NextResponse.json({ success: false, error: dbError.message }, { status: 500 });
+    let saveError = null;
+    if (targetId) {
+      const { error } = await supabase.from('instances').update(payload).eq('id', targetId);
+      saveError = error;
+    } else {
+      const { error } = await supabase.from('instances').upsert(payload, { onConflict: 'telegram_token' });
+      saveError = error;
     }
 
-    // 3. Automatically register the Telegram Webhook
-    const activeToken = token || updatedData?.telegram_bot_token;
-    const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://autocloud-ai-p448.vercel.app');
+    if (saveError) {
+      console.error('[Supabase Save Error]:', saveError);
+      return NextResponse.json({ success: false, error: saveError.message }, { status: 500 });
+    }
 
-    if (activeToken && appUrl) {
-      const webhookUrl = `${appUrl}/api/telegram-webhook?instanceId=${finalId}`;
-      try {
-        await fetch(`https://api.telegram.org/bot${activeToken}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
-        console.log(`[Configure API] Telegram webhook bound to: ${webhookUrl}`);
-      } catch (webhookErr) {
-        console.warn('[Configure API] Webhook registration warning:', webhookErr);
-      }
+    // 2. Automatically register this customer's webhook with Telegram
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://autocloud-ai-p448.vercel.app';
+    const dynamicWebhookUrl = `${baseUrl}/api/telegram-webhook?token=${encodeURIComponent(token)}`;
+
+    const telegramRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: dynamicWebhookUrl })
+    });
+
+    const telegramData = await telegramRes.json();
+
+    if (!telegramData.ok) {
+      console.error('[Telegram Webhook Error]:', telegramData);
+      return NextResponse.json({
+        success: false,
+        error: `Invalid Telegram Token: ${telegramData.description || 'Failed to connect bot.'}`
+      }, { status: 400 });
     }
 
     return NextResponse.json({
       success: true,
-      instanceId: finalId,
-      knowledgeLength: updatedData?.knowledge_base?.length || 0,
-      data: updatedData,
+      message: 'Bot activated! Webhook registered successfully with zero customer setup.'
     });
-  } catch (err: any) {
-    console.error('[Configure API] Fatal Error:', err);
-    return NextResponse.json(
-      { success: false, error: err.message || 'Internal Server Error' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error('[Configure Error]:', error);
+    return NextResponse.json({ success: false, error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

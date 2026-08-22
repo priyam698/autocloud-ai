@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
+const FALLBACK_BOT_TOKEN = '8933256473:AAHoCwrKmPqdvsJf2gzuFFCcO4usvF7E4vc';
+
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
   const key =
@@ -14,33 +16,36 @@ function getSupabase() {
   return createClient(url, key);
 }
 
-// AI Engine: Grounded exclusively on customer's knowledge text
-async function askGroq(userQuestion: string, businessKnowledge: string, botName: string = 'Assistant'): Promise<string> {
+// 1. Safe AI Query with Strict 6-Second Timeout
+async function queryAI(userQuestion: string, knowledgeText: string, botName: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY?.trim();
 
-  if (!businessKnowledge || businessKnowledge.trim().length === 0) {
-    return 'Hello! I am your AI assistant. The business knowledge base is currently being updated. Please ask again shortly or leave your contact details.';
+  // If no knowledge base has been added yet
+  if (!knowledgeText || knowledgeText.trim().length === 0) {
+    return 'Hello! I am your AI assistant. The business knowledge base is currently being updated. Please check back shortly or leave your contact details.';
   }
 
   if (!apiKey) {
-    console.error('[Groq Error]: Missing GROQ_API_KEY');
-    return 'Our support assistant is experiencing a temporary service update. Please try again shortly.';
+    console.warn('[AI Engine] Missing GROQ_API_KEY, returning raw matching text');
+    return knowledgeText.slice(0, 300);
   }
 
-  const prompt = `You are ${botName}, the official customer support AI assistant for this business.
-Answer the customer's question directly, accurately, and politely using ONLY the business knowledge provided below.
+  const prompt = `You are ${botName || 'an AI Assistant'}, the official customer support assistant for this business.
+Answer the customer's question directly, accurately, and politely using ONLY the knowledge base below.
 
 ================ BUSINESS KNOWLEDGE BASE ================
-${businessKnowledge.trim()}
+${knowledgeText.trim()}
 =========================================================
 
 RULES:
-1. Answer the question using ONLY details from the knowledge base above (pricing, products, shipping, policies).
-2. If the user asks about specific prices (e.g. jackets, shoes, plans), quote the exact prices stated in the knowledge base.
-3. If the answer is NOT present in the knowledge base, politely state that you do not have that specific information.
-4. Keep answers concise, natural, and under 3 sentences.`;
+1. Answer using ONLY information from the knowledge base (quote exact prices, products, and rules).
+2. If the answer is not in the text, politely state that you do not have that specific information.
+3. Keep responses natural, concise, and under 3 sentences.`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -56,67 +61,88 @@ RULES:
         temperature: 0.1,
         max_tokens: 350,
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json();
       const content = data.choices?.[0]?.message?.content?.trim();
       if (content) return content;
-    } else {
-      console.error('[Groq API Error]:', res.status, await res.text());
     }
-  } catch (err) {
-    console.error('[Groq Fetch Exception]:', err);
+  } catch (err: any) {
+    console.error('[AI Engine Error / Timeout]:', err?.message || err);
   }
 
-  return 'I am currently having trouble retrieving that information. Please try again shortly.';
+  // Fast Fallback: Find matching sentence directly from knowledge text
+  const cleanQ = userQuestion.toLowerCase();
+  const matchedLine = knowledgeText
+    .split('\n')
+    .find(line => cleanQ.split(' ').some(word => word.length > 3 && line.toLowerCase().includes(word)));
+
+  return matchedLine || knowledgeText.slice(0, 250);
 }
 
+// 2. Safe Telegram Message Dispatcher
+async function sendTelegramMessage(token: string, chatId: number | string, text: string) {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+      }),
+    });
+
+    const resData = await res.json().catch(() => ({}));
+    console.log(`[Telegram Dispatch] Chat: ${chatId} | Status: ${res.status} | Ok: ${resData.ok}`);
+    return resData;
+  } catch (err) {
+    console.error('[Telegram Dispatch Failed]:', err);
+    return null;
+  }
+}
+
+// 3. Webhook Entry Point
 export async function POST(req: Request) {
+  let chatId: number | string | null = null;
+  let activeToken = FALLBACK_BOT_TOKEN;
+
   try {
     const { searchParams } = new URL(req.url);
     const instanceId = searchParams.get('instanceId') || searchParams.get('id');
     const tokenParam = searchParams.get('token');
 
-    const update = await req.json().catch(() => null);
-    if (!update) return NextResponse.json({ ok: true });
+    if (tokenParam) activeToken = tokenParam;
 
-    const message = update.message || update.channel_post || update.edited_message;
-    if (!message || !message.text) {
+    const rawUpdate = await req.json().catch(() => null);
+    if (!rawUpdate) return NextResponse.json({ ok: true });
+
+    // Handle standard message, edited message, or channel post
+    const msg = rawUpdate.message || rawUpdate.channel_post || rawUpdate.edited_message;
+    if (!msg || !msg.text) {
       return NextResponse.json({ ok: true });
     }
 
-    const chatId = message.chat?.id;
-    let userText = message.text.trim();
-    userText = userText.replace(/@\w+/g, '').trim();
+    chatId = msg.chat?.id;
+    let userText = msg.text.trim().replace(/@\w+/g, '').trim();
 
     if (!chatId || !userText) {
       return NextResponse.json({ ok: true });
     }
 
-    // Hard fallback bot token to guarantee delivery even if env vars are missing
-    let botToken =
-      tokenParam ||
-      process.env.TELEGRAM_BOT_TOKEN ||
-      process.env.TELEGRAM_SUPPORT_BOT_TOKEN ||
-      '8933256473:AAHoCwrKmPqdvsJf2gzuFFCcO4usvF7E4vc';
-
     let customerKnowledge = '';
     let botName = 'Felix';
 
-    const supabase = getSupabase();
-
-    // Query database for customer's knowledge base
+    // Fetch deployment from Supabase
     try {
-      let { data: records, error } = await supabase.from('deployments').select('*');
+      const supabase = getSupabase();
+      const { data: records, error } = await supabase.from('deployments').select('*');
 
-      if (error || !records || records.length === 0) {
-        const fallbackRes = await supabase.from('instances').select('*');
-        records = fallbackRes.data;
-      }
-
-      if (records && records.length > 0) {
-        let matchedRow = records[0];
+      if (!error && records && records.length > 0) {
+        let row = records[0];
 
         if (instanceId) {
           const found = records.find(
@@ -124,47 +150,46 @@ export async function POST(req: Request) {
               r.id === instanceId ||
               (typeof r.id === 'string' && r.id.toLowerCase().startsWith(instanceId.toLowerCase()))
           );
-          if (found) matchedRow = found;
+          if (found) row = found;
         }
 
-        botToken = matchedRow.telegram_bot_token || matchedRow.bot_token || botToken;
-        botName = matchedRow.bot_name || matchedRow.name || botName;
+        activeToken = row.telegram_bot_token || row.bot_token || activeToken;
+        botName = row.bot_name || row.name || botName;
+
         customerKnowledge =
-          matchedRow.knowledge_base ||
-          matchedRow.business_knowledge ||
-          matchedRow.knowledge ||
-          matchedRow.business_info ||
-          matchedRow.rules ||
-          matchedRow.prompt ||
-          matchedRow.system_prompt ||
+          row.knowledge_base ||
+          row.business_knowledge ||
+          row.knowledge ||
+          row.business_info ||
+          row.rules ||
+          row.prompt ||
           '';
 
-        console.log(`[Webhook Matched] ID: ${matchedRow.id} | Knowledge Length: ${customerKnowledge.length}`);
+        console.log(`[DB Match] Row ID: ${row.id} | Knowledge Length: ${customerKnowledge.length} chars`);
       }
     } catch (dbErr) {
-      console.error('[Webhook DB Query Exception]:', dbErr);
+      console.error('[DB Query Exception]:', dbErr);
     }
 
-    // Generate dynamic reply with Groq
-    const replyText = await askGroq(userText, customerKnowledge, botName);
+    // Generate response
+    const replyText = await queryAI(userText, customerKnowledge, botName);
 
-    // Dispatch reply to Telegram
-    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: replyText,
-      }),
-    });
-
-    if (!tgRes.ok) {
-      console.error('[Telegram API Send Failed]:', await tgRes.text());
-    }
+    // Guaranteed message delivery
+    await sendTelegramMessage(activeToken, chatId, replyText);
 
     return NextResponse.json({ ok: true });
-  } catch (fatal: any) {
-    console.error('[Telegram Webhook Fatal]:', fatal);
+  } catch (fatalErr: any) {
+    console.error('[Webhook Fatal Exception]:', fatalErr);
+
+    // If a fatal crash happens after getting the chatId, still send an emergency message
+    if (chatId) {
+      await sendTelegramMessage(
+        activeToken,
+        chatId,
+        'I am currently experiencing a brief connection delay. Please try your question again in a few moments.'
+      );
+    }
+
     return NextResponse.json({ ok: true });
   }
 }

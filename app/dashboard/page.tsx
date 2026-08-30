@@ -6,6 +6,7 @@ import Link from 'next/link';
 interface DeploymentInstance {
   id: string;
   name: string;
+  bot_name?: string;
   template_id: string;
   is_enabled: boolean;
   status?: string;
@@ -532,226 +533,126 @@ const handleAutoScrape = async () => {
 
       {/* Configure Bot Modal */}
       {keyModalInstance && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-lg w-full text-white shadow-2xl max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-1">🤖 Configure AI Agent</h3>
-                <p className="text-xs text-slate-400">
-                  Choose your bot configuration type and connect your company details or website integration.
-                </p>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#0D1017] border border-slate-800 rounded-3xl w-full max-w-lg p-6 shadow-2xl relative my-6 text-white">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-800/80 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-950/60 border border-purple-700/50 flex items-center justify-center text-purple-300 text-lg shadow-inner">
+                  🤖
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Configure AI Telegram Agent</h3>
+                  <p className="text-xs text-slate-400">Connect your bot and manage rules directly from Telegram</p>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowGuideModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 text-xs font-semibold rounded-lg border border-slate-700 transition shrink-0"
+                onClick={() => setKeyModalInstance(null)}
+                className="text-slate-400 hover:text-white text-lg font-bold px-2 py-1 transition"
               >
-                📖 Channel Guides
+                ✕
               </button>
             </div>
 
-            {/* STEP-BY-STEP QUICK GUIDE */}
-          <div className="mb-4 text-left">
-            <button
-              type="button"
-              onClick={() => setShowTelegramGuide(!showTelegramGuide)}
-              className="w-full py-2 px-3.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-semibold flex items-center justify-between transition"
-            >
-              <span className="flex items-center gap-2">
-                <span>📖</span> How to get your Telegram Bot Token (2-Min Guide)
-              </span>
-              <span>{showTelegramGuide ? '▲ Hide' : '▼ View Steps'}</span>
-            </button>
-
-            {showTelegramGuide && (
-              <div className="mt-2.5 bg-slate-950 border border-cyan-500/20 rounded-xl p-3 text-xs text-slate-300 space-y-1.5 animate-in fade-in">
-                <p>1. Open Telegram and search for <strong>@BotFather</strong>.</p>
-                <p>2. Send <code>/newbot</code>, choose a bot Name, and choose a Username ending in <code>bot</code>.</p>
-                <p>3. Copy the <strong>HTTP API Token</strong> provided by BotFather and paste it in the field below.</p>
-              </div>
-            )}
-          </div>
-           {/* ACTIVE CHANNEL BADGE (LOCKED TO THIS BOT) */}
-          <div className="mb-4 text-left">
-            <label className="block text-xs font-semibold text-slate-400 mb-2">
-              Active Integration Channel:
-            </label>
-            <div className="flex items-center">
-              {getChannelFromInstance(keyModalInstance) === 'telegram' && (
-                <div className="px-4 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 bg-purple-600/20 border-purple-500/50 text-purple-300">
-                  <span className="text-base">✈️</span>
-                  <span>Telegram AI Bot</span>
-                  <span className="ml-2 text-[10px] bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700 text-slate-300">
-                    Connected Instance
-                  </span>
-                </div>
-              )}
-              {getChannelFromInstance(keyModalInstance) === 'slack' && (
-                <div className="px-4 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 bg-emerald-600/20 border-emerald-500/50 text-emerald-300">
-                  <span className="text-base">💼</span>
-                  <span>Slack AI Bot</span>
-                  <span className="ml-2 text-[10px] bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700 text-slate-300">
-                    Connected Instance
-                  </span>
-                </div>
-              )}
-              {getChannelFromInstance(keyModalInstance) === 'discord' && (
-                <div className="px-4 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 bg-indigo-600/20 border-indigo-500/50 text-indigo-300">
-                  <span className="text-base">👾</span>
-                  <span>Discord AI Bot</span>
-                  <span className="ml-2 text-[10px] bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700 text-slate-300">
-                    Connected Instance
-                  </span>
-                </div>
-              )}
-              {getChannelFromInstance(keyModalInstance) === 'webchat' && (
-                <div className="px-4 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 bg-blue-600/20 border-blue-500/50 text-blue-300">
-                  <span className="text-base">🌐</span>
-                  <span>Web Chat Widget</span>
-                  <span className="ml-2 text-[10px] bg-slate-900/80 px-2 py-0.5 rounded-full border border-slate-700 text-slate-300">
-                    Connected Instance
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* DYNAMIC CREDENTIAL INPUT BASED ON INSTANCE */}
-          {getChannelFromInstance(keyModalInstance) === 'telegram' && (
+            {/* Bot Display Name */}
             <div className="mb-4 text-left">
-              <label className="block text-xs font-medium text-slate-400 mb-1">
-                Telegram Bot Token (from @BotFather):
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Bot Display Name
               </label>
               <input
                 type="text"
-                value={userTelegramToken}
-                onChange={(e) => setUserTelegramToken(e.target.value)}
-                placeholder="e.g. 8933256473:AAHoCwrKmPq..."
-                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 font-mono"
+                placeholder="Felix"
+                value={keyModalInstance.name || 'Felix'}
+                onChange={(e) => {
+                  setKeyModalInstance({
+                    ...keyModalInstance,
+                    name: e.target.value,
+                  });
+                }}
+                className="w-full bg-[#080B11] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 transition"
               />
             </div>
-          )}
 
-          {getChannelFromInstance(keyModalInstance) === 'slack' && (
-            <div className="mb-4 text-left">
-              <label className="block text-xs font-medium text-slate-400 mb-1">
-                Slack Bot User OAuth Token (starts with xoxb-):
+            {/* Telegram Bot Token Input */}
+            <div className="mb-5 text-left">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Telegram Bot Token (from @BotFather)
               </label>
-              <input
-                type="text"
-                value={slackToken}
-                onChange={(e) => setSlackToken(e.target.value)}
-                placeholder="xoxb-your-slack-bot-token..."
-                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono"
-              />
-            </div>
-          )}
-
-          {getChannelFromInstance(keyModalInstance) === 'discord' && (
-            <div className="mb-4 text-left space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">
-                  Discord Bot Token:
-                </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs">
+                  🗝️
+                </span>
                 <input
                   type="text"
-                  value={discordToken}
-                  onChange={(e) => setDiscordToken(e.target.value)}
-                  placeholder="Paste your Discord Bot Token..."
-                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">
-                  Discord Public Key (from Developer Portal):
-                </label>
-                <input
-                  type="text"
-                  value={discordPublicKey}
-                  onChange={(e) => setDiscordPublicKey(e.target.value)}
-                  placeholder="Paste Discord Public Key..."
-                  className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-mono"
+                  placeholder="8933256473:AAHoCwrKmPqdvsJf2gzuFFCc04usvF7E4vc"
+                  value={userTelegramToken || ''}
+                  onChange={(e) => setUserTelegramToken(e.target.value)}
+                  className="w-full bg-[#080B11] border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white font-mono placeholder-slate-600 focus:outline-none focus:border-purple-500 transition"
                 />
               </div>
             </div>
-          )}
 
-          {getChannelFromInstance(keyModalInstance) === 'webchat' && (
-            <div className="mb-4 text-left">
-              <label className="block text-xs font-medium text-slate-400 mb-1">
-                Embeddable Web Chat Script Tag:
-              </label>
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg font-mono text-[11px] text-blue-300 select-all break-all">
-                {`<script src="https://autocloud-ai-p448.vercel.app/widget.js" data-team-id="${keyModalInstance?.id}"></script>`}
+            {/* How To Manage In Telegram Guide Box */}
+            <div className="mb-5 text-left bg-purple-950/20 border border-purple-900/40 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3.5">
+                <span className="text-purple-400 text-xs">✨</span>
+                <h4 className="text-[11px] font-bold text-purple-300 tracking-wider uppercase">
+                  HOW TO MANAGE YOUR BOT ON TELEGRAM
+                </h4>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="flex items-start gap-3">
+                  <span className="w-5 h-5 rounded-full bg-purple-900/60 text-purple-300 border border-purple-700/50 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    1
+                  </span>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    <strong className="text-white">Open Interactive Menu:</strong> Send <code className="bg-purple-950/80 border border-purple-800/40 px-1.5 py-0.5 rounded text-purple-300 font-mono">/menu</code> in Telegram to view rules or delete items with 1-tap buttons.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <span className="w-5 h-5 rounded-full bg-purple-900/60 text-purple-300 border border-purple-700/50 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    2
+                  </span>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    <strong className="text-white">Add New Policies:</strong> Send <code className="bg-purple-950/80 border border-purple-800/40 px-1.5 py-0.5 rounded text-purple-300 font-mono">/add &lt;rule&gt;</code> to append shipping, pricing, or store rules anytime.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <span className="w-5 h-5 rounded-full bg-purple-900/60 text-purple-300 border border-purple-700/50 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    3
+                  </span>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    <strong className="text-white">Extract Any Website:</strong> Send <code className="bg-purple-950/80 border border-purple-800/40 px-1.5 py-0.5 rounded text-purple-300 font-mono">/website https://yourstore.com</code> to auto-train your bot instantly.
+                  </p>
+                </div>
               </div>
             </div>
-          )}
 
-          {/* BUSINESS KNOWLEDGE BASE */}
-          <div className="mb-4 text-left">
-            <label className="block text-xs font-semibold text-slate-200 mb-1">
-              AI Knowledge & Store Instructions
-            </label>
-            <p className="text-[11px] text-slate-400 mb-2">
-              Explain your products, pricing, shipping, or rules in plain English. Your bot learns this automatically.
-            </p>
-            <textarea
-              rows={4}
-              value={businessInfo}
-              onChange={(e) => setBusinessInfo(e.target.value)}
-              placeholder="Example: We sell organic roasted coffee beans. Standard shipping takes 2-4 business days. Free shipping on orders over $50. Always respond politely to customer inquiries."
-              className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
-            />
-          </div>
-
-          {/* AUTO-TRAIN AI FROM WEBSITE URL */}
-          <div className="mb-4 text-left p-3 bg-slate-950 border border-slate-800 rounded-xl">
-            <label className="block text-xs font-semibold text-purple-300 mb-1">
-              🌐 Auto-Train AI from Website URL
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="url"
-                value={websiteUrl}
-                onChange={(e) => setWebsiteUrl(e.target.value)}
-                placeholder="https://yourcompany.com"
-                className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500"
-              />
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={handleScrapeWebsite}
-                disabled={isScraping || !websiteUrl}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition shrink-0"
+                onClick={() => setKeyModalInstance(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition"
               >
-                {isScraping ? 'Scraping...' : 'Auto-Scrape'}
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveApiKey}
+                disabled={isSavingKey}
+                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-lg shadow-purple-600/30 transition flex items-center gap-2 disabled:opacity-50"
+              >
+                {isSavingKey ? 'Activating Webhook...' : '⚡ Save & Activate Bot'}
               </button>
             </div>
-            {scrapeStatus && (
-              <p className="text-[11px] text-slate-400 mt-2">{scrapeStatus}</p>
-            )}
-          </div>
-
-          {/* MODAL FOOTER */}
-          <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setKeyModalInstance(null)}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveApiKey}
-              disabled={isSavingKey}
-              className="px-5 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition flex items-center gap-2 shadow-lg shadow-purple-600/20"
-            >
-              {isSavingKey ? 'Activating Webhook...' : '⚡ Save & Activate Bot'}
-            </button>
           </div>
         </div>
-      </div>
-    )}
+      )}
       {/* INTEGRATION GUIDES MODAL */}
       {showGuideModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">

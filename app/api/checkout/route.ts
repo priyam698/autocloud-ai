@@ -1,11 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import crypto from 'crypto';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 const TEMPLATE_NAMES: Record<string, string> = {
   telegram: 'Telegram AI Bot',
@@ -16,9 +9,6 @@ const TEMPLATE_NAMES: Record<string, string> = {
   'discord-ai-bot': 'Discord AI Bot',
   webchat: 'Web Chat Widget',
   'webchat-ai-bot': 'Web Chat Widget',
-  // Legacy fallbacks
-  'n8n-workflow': 'n8n Workflow Automation',
-  'langchain-runner': 'LangChain & CrewAI Runner',
 };
 
 export async function POST(req: Request) {
@@ -27,38 +17,13 @@ export async function POST(req: Request) {
     const { templateId } = body;
 
     const selectedTemplate = (templateId || 'telegram').toLowerCase();
-    const instanceName = TEMPLATE_NAMES[selectedTemplate] || 'Universal AI Bot';
-    const accessPassword = crypto.randomBytes(6).toString('hex');
+    const instanceName = TEMPLATE_NAMES[selectedTemplate] || 'Telegram AI Bot';
 
-    // 1. Create exactly 1 instance record in Supabase right away with dynamic name
-    const { data: instanceData, error: dbError } = await supabase
-      .from('deployments')
-      .insert([
-        {
-          name: instanceName,
-          template_id: selectedTemplate,
-          access_password: accessPassword,
-          is_enabled: true,
-        },
-      ])
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('[Checkout DB Error]:', dbError);
-      return NextResponse.json(
-        { success: false, error: dbError.message },
-        { status: 500 }
-      );
-    }
-
-    // 2. Request LemonSqueezy Checkout URL
     const apiKey = process.env.LEMONSQUEEZY_API_KEY;
     const storeId = process.env.LEMONSQUEEZY_STORE_ID;
     const variantId = process.env.LEMONSQUEEZY_VARIANT_ID;
 
     if (!apiKey || !storeId || !variantId) {
-      // Fallback: If LemonSqueezy keys are missing, take user directly to dashboard
       return NextResponse.json({
         success: true,
         url: '/dashboard',
@@ -79,8 +44,8 @@ export async function POST(req: Request) {
           attributes: {
             checkout_data: {
               custom: {
-                instance_id: instanceData.id,
                 template_id: selectedTemplate,
+                bot_name: instanceName,
               },
             },
           },

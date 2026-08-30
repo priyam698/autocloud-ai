@@ -561,17 +561,17 @@ const handleAutoScrape = async () => {
                 Bot Display Name
               </label>
               <input
-                type="text"
-                placeholder="Felix"
-                value={keyModalInstance.name || 'Felix'}
-                onChange={(e) => {
-                  setKeyModalInstance({
-                    ...keyModalInstance,
-                    name: e.target.value,
-                  });
-                }}
-                className="w-full bg-[#080B11] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 transition"
-              />
+  type="text"
+  placeholder="Telegram AI Bot"
+  value={keyModalInstance.name || ''}
+  onChange={(e) => {
+    setKeyModalInstance({
+      ...keyModalInstance,
+      name: e.target.value,
+    });
+  }}
+  className="w-full bg-[#080B11] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 transition"
+/>
             </div>
 
             {/* Telegram Bot Token Input */}

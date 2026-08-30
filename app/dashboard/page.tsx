@@ -74,7 +74,7 @@ export default function Dashboard() {
 
   // Live Telemetry Metrics State
   const [metrics, setMetrics] = useState({ cpu: '12%', ram: '42%', gpu: '8%', temp: '44°C' });
-
+  const [showTelegramGuide, setShowTelegramGuide] = useState<boolean>(false);
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -550,35 +550,27 @@ const handleAutoScrape = async () => {
               </button>
             </div>
 
-            {/* BOT TYPE TOGGLE BUTTONS */}
-            <div className="grid grid-cols-2 gap-2 mb-5">
-              <button
-                type="button"
-                onClick={() => setBotType('general')}
-                className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${
-                  botType === 'general'
-                    ? 'bg-purple-600 border-purple-500 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                💬 General Support Bot
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setBotType('ecommerce');
-                  handleLoadEcommerceTemplate();
-                }}
-                className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${
-                  botType === 'ecommerce'
-                    ? 'bg-purple-600 border-purple-500 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                🛍️ E-Commerce & Service
-              </button>
-            </div>
+            {/* STEP-BY-STEP QUICK GUIDE */}
+          <div className="mb-4 text-left">
+            <button
+              type="button"
+              onClick={() => setShowTelegramGuide(!showTelegramGuide)}
+              className="w-full py-2 px-3.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-semibold flex items-center justify-between transition"
+            >
+              <span className="flex items-center gap-2">
+                <span>📖</span> How to get your Telegram Bot Token (2-Min Guide)
+              </span>
+              <span>{showTelegramGuide ? '▲ Hide' : '▼ View Steps'}</span>
+            </button>
 
+            {showTelegramGuide && (
+              <div className="mt-2.5 bg-slate-950 border border-cyan-500/20 rounded-xl p-3 text-xs text-slate-300 space-y-1.5 animate-in fade-in">
+                <p>1. Open Telegram and search for <strong>@BotFather</strong>.</p>
+                <p>2. Send <code>/newbot</code>, choose a bot Name, and choose a Username ending in <code>bot</code>.</p>
+                <p>3. Copy the <strong>HTTP API Token</strong> provided by BotFather and paste it in the field below.</p>
+              </div>
+            )}
+          </div>
            {/* ACTIVE CHANNEL BADGE (LOCKED TO THIS BOT) */}
           <div className="mb-4 text-left">
             <label className="block text-xs font-semibold text-slate-400 mb-2">
@@ -697,15 +689,18 @@ const handleAutoScrape = async () => {
 
           {/* BUSINESS KNOWLEDGE BASE */}
           <div className="mb-4 text-left">
-            <label className="block text-xs font-semibold text-slate-400 mb-1">
-              📄 Business Knowledge Base & Rules:
+            <label className="block text-xs font-semibold text-slate-200 mb-1">
+              AI Knowledge & Store Instructions
             </label>
+            <p className="text-[11px] text-slate-400 mb-2">
+              Explain your products, pricing, shipping, or rules in plain English. Your bot learns this automatically.
+            </p>
             <textarea
               rows={4}
               value={businessInfo}
               onChange={(e) => setBusinessInfo(e.target.value)}
-              placeholder="Enter your business background, pricing, FAQs, and bot behavior rules..."
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 font-sans"
+              placeholder="Example: We sell organic roasted coffee beans. Standard shipping takes 2-4 business days. Free shipping on orders over $50. Always respond politely to customer inquiries."
+              className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
             />
           </div>
 

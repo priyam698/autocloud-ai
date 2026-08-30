@@ -239,27 +239,30 @@ const handleScrapeWebsite = async () => {
     }
   };
 
-  const handleDeleteInstance = async (instanceId: string) => {
-    if (!confirm('Are you sure you want to delete this agent instance?')) return;
+ const handleDeleteInstance = async (instanceId: string) => {
+  if (!confirm('Are you sure you want to delete this agent instance?')) return;
 
-    try {
-      const res = await fetch('/api/instance/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceId }),
-      });
+  try {
+    const res = await fetch('/api/instance/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instanceId, id: instanceId }),
+    });
 
-      const data = await res.json();
-      if (res.ok) {
-        alert('Instance deleted successfully!');
-        fetchInstances();
-      } else {
-        alert('Failed to delete: ' + (data.error || 'Unknown error'));
-      }
-    } catch (err) {
-      alert('Error deleting instance.');
+    const data = await res.json();
+    if (res.ok) {
+      // Instantly remove card from UI without waiting for reload
+      setInstances((prev: any[]) => prev.filter((item: any) => item.id !== instanceId));
+      setFilteredInstances((prev: any[]) => prev.filter((item: any) => item.id !== instanceId));
+      fetchInstances();
+      alert('Instance deleted successfully!');
+    } else {
+      alert('Failed to delete: ' + (data.error || 'Unknown error'));
     }
-  };
+  } catch (err) {
+    alert('Error deleting instance.');
+  }
+};
 const handleRunCrewTask = async () => {
     if (!keyModalInstance || !crewTaskPrompt.trim()) return;
     setIsExecutingCrew(true);

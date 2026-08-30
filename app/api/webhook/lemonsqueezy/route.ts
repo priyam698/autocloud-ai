@@ -6,11 +6,8 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    'placeholder-key';
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
   return createClient(url, key);
 }
 
@@ -19,56 +16,62 @@ export async function POST(req: Request) {
     const rawBody = await req.text();
     const payload = JSON.parse(rawBody || '{}');
     const eventName = payload.meta?.event_name || '';
+    const customData = payload.meta?.custom_data || {};
+    const attributes = payload.data?.attributes || {};
+    
+    const orderId = payload.data?.id?.toString() || attributes.order_id?.toString() || '';
+    const userEmail = attributes.user_email || attributes.customer_email || attributes.billing_email || 'customer@autocloud.ai';
+    const supabase = getSupabase();
 
-    // Catch all checkout and subscription success events
+    // 1. HANDLE EXPIRATIONS OR CANCELLATIONS
+    if (eventName === 'subscription_cancelled' || eventName === 'subscription_expired') {
+      if (orderId) {
+        await supabase
+          .from('deployments')
+          .update({ status: 'expired', is_enabled: false, updated_at: new Date().toISOString() })
+          .eq('order_id', orderId);
+      }
+      return NextResponse.json({ success: true, message: 'Instance deactivated on expiration' });
+    }
+
+    // 2. HANDLE SUCCESSFUL ORDERS & SUBSCRIPTIONS
     const isPaymentSuccess =
       eventName === 'order_created' ||
       eventName === 'subscription_created' ||
-      eventName === 'subscription_payment_success' ||
-      eventName === 'order_successful';
+      eventName === 'subscription_payment_success';
 
     if (isPaymentSuccess) {
-      const orderId = payload.data?.id?.toString() || payload.data?.attributes?.order_id?.toString() || '';
-      const userEmail =
-        payload.data?.attributes?.user_email ||
-        payload.data?.attributes?.customer_email ||
-        payload.data?.attributes?.billing_email ||
-        'customer@store.com';
-
-      const customData = payload.meta?.custom_data || {};
-      const templateId = customData.template_id || customData.variant || 'telegram';
-
-      const templateNames: Record<string, string> = {
-        telegram: 'Telegram AI Bot',
-        'telegram-ai-bot': 'Telegram AI Bot',
-        slack: 'Slack AI Bot',
-        'slack-ai-bot': 'Slack AI Bot',
-        discord: 'Discord AI Bot',
-        'discord-ai-bot': 'Discord AI Bot',
-        webchat: 'Web Chat Widget',
-        'webchat-ai-bot': 'Web Chat Widget',
-      };
-
-      const botDisplayName = templateNames[templateId] || 'Telegram AI Bot';
-      const supabase = getSupabase();
-
-      // 1. Check for existing order (Idempotency)
-      if (orderId) {
-        const { data: existing } = await supabase
-          .from('deployments')
-          .select('id')
-          .eq('order_id', orderId)
-          .maybeSingle();
-
-        if (existing) {
-          console.log(`[Webhook] Order ${orderId} already exists in database. Skipping duplicate.`);
-          return NextResponse.json({ message: 'Order already processed' }, { status: 200 });
-        }
+      if (!orderId) {
+        return NextResponse.json({ error: 'Missing order_id' }, { status: 400 });
       }
 
-      // 2. Insert new deployment instance
+      // Strict Idempotency: Check if instance for this order already exists
+      const { data: existing } = await supabase
+        .from('deployments')
+        .select('id, status')
+        .eq('order_id', orderId)
+        .maybeSingle();
+
+      if (existing) {
+        // If renewing or updating status
+        await supabase
+          .from('deployments')
+          .update({ status: 'active', is_enabled: true, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        return NextResponse.json({ success: true, message: 'Order already exists. Status validated.' });
+      }
+
+      const templateId = customData.template_id || customData.variant || 'telegram';
+      const templateTitles: Record<string, string> = {
+        telegram: 'Telegram AI Assistant',
+        slack: 'Slack Intelligence Agent',
+        discord: 'Discord Community Bot',
+        webchat: 'Live Web Chat Widget',
+      };
+      const botDisplayName = templateTitles[templateId] || 'Universal AI Bot';
       const accessPassword = crypto.randomBytes(4).toString('hex').toUpperCase();
 
+      // Insert exactly ONE instance
       const { data: newDeployment, error: insertError } = await supabase
         .from('deployments')
         .insert([
@@ -76,13 +79,13 @@ export async function POST(req: Request) {
             name: botDisplayName,
             bot_name: botDisplayName,
             template_id: templateId,
-            order_id: orderId || null,
-            user_email: userEmail || null,
+            order_id: orderId,
+            user_email: userEmail,
             access_password: accessPassword,
             status: 'active',
             is_enabled: true,
             telegram_bot_token: '',
-            knowledge_base: 'We assist shoppers with questions regarding our store and products.',
+            knowledge_base: 'Primary AI knowledge base initialized. Update instructions via dashboard.',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
@@ -91,36 +94,30 @@ export async function POST(req: Request) {
         .single();
 
       if (insertError) {
-        console.error('[Webhook DB Error]:', insertError);
+        console.error('[Webhook Supabase Error]:', insertError);
         return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
 
-      console.log(`[Webhook] Created single instance for order ${orderId}`);
-
-      // 3. Dispatch credentials email
-      if (userEmail && newDeployment) {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://autocloud-ai-p448.vercel.app';
-        try {
-          await fetch(`${appUrl}/api/auth/send-credentials`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_email: userEmail,
-              instanceId: newDeployment.id,
-              access_password: accessPassword,
-              instanceName: newDeployment.name,
-            }),
-          });
-          console.log(`[Webhook] Sent password email to ${userEmail}`);
-        } catch (emailErr) {
-          console.error('[Webhook Email Dispatch Error]:', emailErr);
-        }
+      // Send Credentials Email
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://autocloud-ai-p448.vercel.app';
+      try {
+        await fetch(`${appUrl}/api/auth/send-credentials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_email: userEmail,
+            instanceId: newDeployment.id,
+            access_password: accessPassword,
+            instanceName: newDeployment.name,
+          }),
+        });
+      } catch (e) {
+        console.error('[Email Notification Error]:', e);
       }
     }
 
     return NextResponse.json({ success: true, event: eventName });
   } catch (err: any) {
-    console.error('[Webhook Exception]:', err);
-    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Webhook internal error' }, { status: 500 });
   }
 }

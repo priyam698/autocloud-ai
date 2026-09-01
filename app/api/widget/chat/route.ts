@@ -42,78 +42,68 @@ function cleanResponse(raw: string, userQ: string): string {
   return text;
 }
 
-// Intelligent Semantic Rule Parser (Isolates exact answers without dumping headers)
+// Resilient Fallback Parser: strictly strips all section headers
 function parseKnowledgeAnswer(question: string, knowledge: string, botName: string): string {
   if (!knowledge || !knowledge.trim()) {
     return `Hello! I'm ${botName}. How can I assist you with our store today?`;
   }
 
   const q = question.toLowerCase();
-  const lines = knowledge
+  
+  // Clean knowledge: ignore headers, dividers, and empty lines
+  const cleanLines = knowledge
     .split(/\n+/)
     .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith('===') && !l.startsWith('---'));
-
-  // 1. Check for Feature questions
-  if (q.includes('feature') || q.includes('spec') || q.includes('what does it have') || q.includes('details')) {
-    const matchingLine = lines.find((l) => {
+    .filter((l) => {
+      if (!l || l.length <= 2) return false;
+      if (l.startsWith('===') || l.startsWith('---')) return false;
       const lower = l.toLowerCase();
-      return (q.includes('watch') && lower.includes('watch')) ||
-             (q.includes('earbud') && lower.includes('earbud')) ||
-             (q.includes('ring') && lower.includes('ring')) ||
-             lower.includes('feature');
+      if (lower.startsWith('store name:') || lower.startsWith('products & features:') || lower.startsWith('store policies')) return false;
+      if (lower.endsWith(':') && l.length < 35) return false; // Exclude raw section headers
+      return true;
     });
-    if (matchingLine) {
-      return matchingLine.replace(/^[-*•\s]+/, '').replace(/^store name:.*$/i, '').trim();
-    }
+
+  // 1. Search for Product/Feature matches
+  if (q.includes('watch')) {
+    const watchLine = cleanLines.find((l) => l.toLowerCase().includes('watch'));
+    if (watchLine) return watchLine.replace(/^[-*•\s]+/, '').trim();
+  }
+  if (q.includes('earbud') || q.includes('audio') || q.includes('headphone')) {
+    const earbudLine = cleanLines.find((l) => l.toLowerCase().includes('earbud'));
+    if (earbudLine) return earbudLine.replace(/^[-*•\s]+/, '').trim();
   }
 
-  // 2. Check for Return / Refund questions
-  if (q.includes('return') || q.includes('refund') || q.includes('exchange') || q.includes('money back')) {
-    const returnLine = lines.find((l) => {
+  // 2. Search for Return/Refund matches
+  if (q.includes('return') || q.includes('refund') || q.includes('replace') || q.includes('guarantee')) {
+    const returnLine = cleanLines.find((l) => {
       const lower = l.toLowerCase();
-      return lower.includes('return') || lower.includes('refund') || lower.includes('guarantee');
+      return lower.includes('return') || lower.includes('refund') || lower.includes('replacement');
     });
     if (returnLine) return returnLine.replace(/^[-*•\s]+/, '').trim();
   }
 
-  // 3. Check for Shipping / Delivery questions
-  if (q.includes('shipping') || q.includes('delivery') || q.includes('ship') || q.includes('arrive') || q.includes('track')) {
-    const shippingLine = lines.find((l) => {
+  // 3. Search for Shipping matches
+  if (q.includes('ship') || q.includes('delivery') || q.includes('dispatch') || q.includes('arrive')) {
+    const shipLine = cleanLines.find((l) => {
       const lower = l.toLowerCase();
-      return lower.includes('shipping') || lower.includes('delivery') || lower.includes('dispatch');
+      return lower.includes('shipping') || lower.includes('delivery');
     });
-    if (shippingLine) return shippingLine.replace(/^[-*•\s]+/, '').trim();
+    if (shipLine) return shipLine.replace(/^[-*•\s]+/, '').trim();
   }
 
-  // 4. Check for Pricing / Cost questions
-  if (q.includes('price') || q.includes('cost') || q.includes('how much') || q.includes('rate') || q.includes('$') || q.includes('₹')) {
-    const priceLine = lines.find((l) => {
-      const lower = l.toLowerCase();
-      return (
-        (q.includes('watch') && lower.includes('watch')) ||
-        (q.includes('earbud') && lower.includes('earbud')) ||
-        lower.includes('$') ||
-        lower.includes('₹')
-      );
-    });
-    if (priceLine) return priceLine.replace(/^[-*•\s]+/, '').trim();
+  // 4. Search for Support/Contact matches
+  if (q.includes('email') || q.includes('support') || q.includes('contact') || q.includes('help')) {
+    const supportLine = cleanLines.find((l) => l.toLowerCase().includes('support') || l.toLowerCase().includes('@'));
+    if (supportLine) return supportLine.replace(/^[-*•\s]+/, '').trim();
   }
 
-  // 5. Check for Contact / Support questions
-  if (q.includes('email') || q.includes('contact') || q.includes('support') || q.includes('help') || q.includes('reach')) {
-    const contactLine = lines.find((l) => l.toLowerCase().includes('email') || l.toLowerCase().includes('support') || l.toLowerCase().includes('@'));
-    if (contactLine) return contactLine.replace(/^[-*•\s]+/, '').trim();
-  }
-
-  // 6. Keyword Best-Match Filter
+  // 5. Keyword search over non-header lines
   const qWords = q.replace(/[^a-z0-9 ]/g, '').split(' ').filter((w) => w.length > 2);
   let bestLine = '';
   let maxMatches = 0;
 
-  for (const line of lines) {
+  for (const line of cleanLines) {
     const lower = line.toLowerCase();
-    if (lower.startsWith('store name:') || lower.startsWith('products & features:')) continue;
     let matches = 0;
     for (const w of qWords) {
       if (lower.includes(w)) matches++;
@@ -128,7 +118,7 @@ function parseKnowledgeAnswer(question: string, knowledge: string, botName: stri
     return bestLine.replace(/^[-*•\s]+/, '').trim();
   }
 
-  return `Hello! How can I assist you with our store products or policies today?`;
+  return `We assist shoppers with questions regarding our store products and policies. Please ask about a specific product or policy!`;
 }
 
 async function askAI(userQuestion: string, knowledge: string, botName: string): Promise<string> {
@@ -145,26 +135,26 @@ async function askAI(userQuestion: string, knowledge: string, botName: string): 
     process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim();
 
-  const prompt = `You are ${botName}, a customer support AI assistant for our store.
+  const prompt = `You are ${botName}, a customer support representative for our store.
 
-STORE INFORMATION & RULES:
+STORE KNOWLEDGE & POLICIES:
 """
-${cleanKnowledge || 'We assist customers with questions regarding our store, products, and policies.'}
+${cleanKnowledge}
 """
 
 CUSTOMER QUESTION:
 "${userQuestion}"
 
 INSTRUCTIONS:
-1. Answer the customer's question directly, clearly, and politely in 1-2 sentences using strictly the Store Information above.
-2. If asked about features, list the exact features from the store knowledge.
-3. If asked about prices, delivery, or return policies, state the exact policy terms.
-4. Output ONLY the response text for the customer without any meta-talk or raw section titles.`;
+1. Answer the customer directly in 1-2 polite, conversational sentences using ONLY the Store Knowledge provided above.
+2. If asked about features, pricing, or policies, provide the specific details clearly.
+3. If the product or question is not mentioned in the store knowledge, state politely that it is not available.
+4. Output ONLY the response for the customer. Do not output raw section headings or boilerplate headers.`;
 
   // 1. Google Gemini
   if (geminiKey) {
-    const geminiModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
-    for (const model of geminiModels) {
+    const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-2.5-flash'];
+    for (const model of models) {
       try {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
@@ -173,11 +163,12 @@ INSTRUCTIONS:
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{ role: 'user', parts: [{ text: prompt }] }],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 250 },
+              generationConfig: { temperature: 0.2, maxOutputTokens: 250 },
             }),
             signal: AbortSignal.timeout(5000),
           }
         );
+
         if (res.ok) {
           const data = await res.json();
           const reply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
@@ -187,7 +178,7 @@ INSTRUCTIONS:
     }
   }
 
-  // 2. Groq LLaMA 3.3
+  // 2. Groq LLaMA
   if (groqKey) {
     const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
     for (const model of groqModels) {
@@ -201,11 +192,12 @@ INSTRUCTIONS:
           body: JSON.stringify({
             model,
             messages: [{ role: 'user', content: prompt }],
-            temperature: 0.1,
+            temperature: 0.2,
             max_tokens: 250,
           }),
           signal: AbortSignal.timeout(4500),
         });
+
         if (res.ok) {
           const data = await res.json();
           const reply = data.choices?.[0]?.message?.content?.trim();
@@ -262,7 +254,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const botName = deployment.bot_name || deployment.name || 'Store Support';
+    const botName = deployment.bot_name || deployment.name || 'Store Assistant';
     const knowledge = deployment.knowledge_base || '';
 
     const reply = await askAI(userMessage, knowledge, botName);

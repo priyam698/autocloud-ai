@@ -11,16 +11,305 @@ import {
   Globe2, 
   MessageSquare,
   Copy, 
-  Check,
-  Trash2,
-  Loader2,
-  Code2,
-  Send,
-  ArrowLeft
+  Check, 
+  Trash2, 
+  Loader2, 
+  Code2, 
+  Send, 
+  ArrowLeft,
+  X,
+  Save
 } from 'lucide-react';
-import ConfigureAgentModal from '@/components/ConfigureAgentModal';
-import UserManualModal from '@/components/UserManualModal';
 
+/* =========================================================================
+   1. INLINE CONFIGURE AGENT MODAL
+   ========================================================================= */
+function ConfigureAgentModal({
+  isOpen,
+  onClose,
+  instance,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  instance: any;
+}) {
+  const [botName, setBotName] = useState('');
+  const [templateId, setTemplateId] = useState('telegram');
+  const [telegramToken, setTelegramToken] = useState('');
+  const [knowledgeBase, setKnowledgeBase] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [copiedSnippet, setCopiedSnippet] = useState(false);
+
+  useEffect(() => {
+    if (instance) {
+      setBotName(instance.name || instance.bot_name || '');
+      setTemplateId(instance.template_id || 'telegram');
+      setTelegramToken(instance.telegram_bot_token || instance.bot_token || '');
+      setKnowledgeBase(instance.knowledge_base || '');
+      setStatusMsg(null);
+    }
+  }, [instance]);
+
+  if (!isOpen || !instance) return null;
+
+  const origin =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://autocloud-ai-p448.vercel.app';
+  const embedSnippet = `<script src="${origin}/widget.js" data-instance-id="${instance.id}" defer></script>`;
+
+  const copyEmbedSnippet = () => {
+    navigator.clipboard.writeText(embedSnippet);
+    setCopiedSnippet(true);
+    setTimeout(() => setCopiedSnippet(false), 2000);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setStatusMsg(null);
+
+    try {
+      const res = await fetch('/api/instance/configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceId: instance.id,
+          botName,
+          templateId,
+          telegramBotToken: telegramToken,
+          knowledgeBase,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStatusMsg({ type: 'success', text: '⚡ Settings saved and synchronized successfully!' });
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+      } else {
+        setStatusMsg({ type: 'error', text: data.error || 'Failed to save configuration.' });
+      }
+    } catch {
+      setStatusMsg({ type: 'error', text: 'Network error. Please try again.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="relative w-full max-w-2xl bg-[#0f1219] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between bg-[#141824]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-purple-600/20 text-purple-400 border border-purple-500/30">
+              <Bot className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white">Configure AI Agent</h2>
+              <p className="text-xs text-gray-400 font-mono">ID: {instance.id}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <form onSubmit={handleSave} className="p-6 overflow-y-auto space-y-5 flex-1">
+          {statusMsg && (
+            <div
+              className={`p-3 rounded-xl text-xs font-medium ${
+                statusMsg.type === 'success'
+                  ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60'
+                  : 'bg-red-950/60 text-red-300 border border-red-800/60'
+              }`}
+            >
+              {statusMsg.text}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5">
+                Bot Name
+              </label>
+              <input
+                type="text"
+                value={botName}
+                onChange={(e) => setBotName(e.target.value)}
+                placeholder="e.g. Web Chat AI Bot"
+                className="w-full bg-[#181c2b] border border-gray-700/80 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 transition"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5">
+                Bot Service / Platform
+              </label>
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                className="w-full bg-[#181c2b] border border-gray-700/80 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 transition"
+              >
+                <option value="widget">🌐 Web Chat Widget (Website Embed)</option>
+                <option value="telegram">✈️ Telegram AI Bot (Channel / DM)</option>
+              </select>
+            </div>
+          </div>
+
+          {templateId === 'telegram' && (
+            <div className="p-4 rounded-xl bg-[#141824] border border-purple-900/40 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-purple-300 uppercase tracking-wider">
+                <Send className="w-4 h-4" />
+                <span>Telegram Bot Token</span>
+              </div>
+              <input
+                type="text"
+                value={telegramToken}
+                onChange={(e) => setTelegramToken(e.target.value)}
+                placeholder="Paste token from @BotFather (e.g. 8933256473:AAH...)"
+                className="w-full bg-[#181c2b] border border-gray-700/80 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-purple-500 transition"
+              />
+              <p className="text-[11px] text-gray-400">
+                Created via Telegram @BotFather. After saving, send <code>/menu</code> or <code>/train</code> to your bot.
+              </p>
+            </div>
+          )}
+
+          {templateId === 'widget' && (
+            <div className="p-4 rounded-xl bg-[#141824] border border-blue-900/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-semibold text-blue-300 uppercase tracking-wider">
+                  <Code2 className="w-4 h-4" />
+                  <span>Website Embed Snippet</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyEmbedSnippet}
+                  className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 px-2 py-1 rounded bg-blue-950/60 border border-blue-800/40 transition"
+                >
+                  {copiedSnippet ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedSnippet ? 'Copied' : 'Copy Script'}</span>
+                </button>
+              </div>
+              <pre className="p-3 bg-[#0d1017] border border-gray-800 rounded-lg text-xs font-mono text-blue-200 overflow-x-auto whitespace-pre-wrap">
+                {embedSnippet}
+              </pre>
+              <p className="text-[11px] text-gray-400">
+                Paste this script tag inside the <code>&lt;body&gt;</code> of your Shopify, WordPress, or HTML website.
+              </p>
+            </div>
+          )}
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                <span>Store Knowledge Base & Policies</span>
+              </label>
+              <span className="text-[11px] text-gray-400">{knowledgeBase.length} characters</span>
+            </div>
+            <textarea
+              rows={6}
+              value={knowledgeBase}
+              onChange={(e) => setKnowledgeBase(e.target.value)}
+              placeholder="Enter your business information, FAQs, refund policies, and products..."
+              className="w-full bg-[#181c2b] border border-gray-700/80 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-purple-500 transition resize-y font-sans leading-relaxed"
+            />
+          </div>
+
+          <div className="pt-3 border-t border-gray-800 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-[#181c2b] hover:bg-[#22273d] text-gray-300 text-xs font-semibold transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition shadow-lg shadow-purple-900/40 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <span>{saving ? 'Saving...' : 'Save & Synchronize'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   2. INLINE USER MANUAL MODAL
+   ========================================================================= */
+function UserManualModal({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="relative w-full max-w-2xl bg-[#0f1219] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between bg-[#141824]">
+          <div className="flex items-center gap-2.5">
+            <BookOpen className="w-5 h-5 text-purple-400" />
+            <h2 className="text-base font-bold text-white">AutoCloud Agent User Manual</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 overflow-y-auto space-y-4 text-xs text-gray-300 leading-relaxed">
+          <div className="p-4 rounded-xl bg-[#141824] border border-gray-800 space-y-1.5">
+            <h3 className="font-semibold text-white text-sm">🌐 Web Chat Widget Setup</h3>
+            <p>1. Open the <strong>Configure</strong> modal on your instance card.</p>
+            <p>2. Set platform to <strong>Web Chat Widget</strong>.</p>
+            <p>3. Copy the script tag and paste it before <code>&lt;/body&gt;</code> in your website HTML, Shopify, or WordPress theme.</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#141824] border border-gray-800 space-y-1.5">
+            <h3 className="font-semibold text-white text-sm">✈️ Telegram AI Bot Setup</h3>
+            <p>1. Open Telegram, message <code>@BotFather</code>, and run <code>/newbot</code>.</p>
+            <p>2. Paste your bot token in the <strong>Configure</strong> modal.</p>
+            <p>3. Add the bot to your channel or group as an admin to enable automated support.</p>
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-gray-800 flex justify-end bg-[#141824]">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition"
+          >
+            Close Manual
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   3. MAIN DASHBOARD COMPONENT
+   ========================================================================= */
 export default function DashboardPage() {
   const [deployments, setDeployments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,8 +327,8 @@ export default function DashboardPage() {
       const data = await res.json();
       const list = data.deployments || data.instances || data.data || (Array.isArray(data) ? data : []);
       setDeployments(list);
-    } catch (e) {
-      console.error('Failed to load deployments:', e);
+    } catch {
+      console.error('Failed to load deployments');
     } finally {
       setLoading(false);
     }
@@ -83,7 +372,7 @@ export default function DashboardPage() {
       } else {
         alert(`Failed to delete instance: ${data.error || 'Unknown error'}`);
       }
-    } catch (err) {
+    } catch {
       alert('An error occurred while deleting the instance.');
     } finally {
       setDeletingId(null);

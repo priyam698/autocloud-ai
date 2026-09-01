@@ -56,24 +56,33 @@ async function askAI(userQuestion: string, knowledge: string, botName: string): 
     process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim();
 
-  const prompt = `You are ${botName}, a helpful customer support AI for our store.
+  const prompt = `You are ${botName}, an intelligent customer support AI assistant for our store.
 
-STORE INFORMATION & RULES:
+STORE INFORMATION, PRODUCTS & POLICIES:
+"""
 ${cleanKnowledge || 'We assist customers with questions regarding our store, products, and policies.'}
+"""
 
 CUSTOMER QUESTION:
 "${userQuestion}"
 
 INSTRUCTIONS:
-1. Answer the customer directly and thoroughly in 1-2 friendly sentences strictly based on the Store Information above.
-2. If asked about features, list the specific features mentioned in the knowledge base.
-3. If asked about pricing or policies, give the exact numbers and rules provided.
-4. If the item or topic is not in the knowledge base, politely state it is not available.
-5. Output ONLY the response for the customer.`;
+1. Answer the customer's question thoroughly, accurately, and politely strictly using the Store Information above.
+2. If the customer asks about features, specifications, pricing, delivery, or policies, list all relevant details found in the Store Information.
+3. If asked about an item or question that is completely absent from the store information, politely state that you do not have that information in the catalog and offer to connect them with support.
+4. Respond in the exact same language the customer used.
+5. Output ONLY the final response message for the customer.`;
 
   // 1. Google Gemini
   if (geminiKey) {
-    const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+    const models = [
+      'gemini-2.5-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-2.0-flash',
+      'gemini-1.5-pro',
+    ];
+
     for (const model of models) {
       try {
         const res = await fetch(
@@ -83,7 +92,7 @@ INSTRUCTIONS:
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{ role: 'user', parts: [{ text: prompt }] }],
-              generationConfig: { temperature: 0.2, maxOutputTokens: 300 },
+              generationConfig: { temperature: 0.1, maxOutputTokens: 350 },
             }),
             signal: AbortSignal.timeout(6000),
           }
@@ -94,41 +103,42 @@ INSTRUCTIONS:
           const reply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
           if (reply) return cleanResponse(reply, userQuestion);
         }
-      } catch (e) {
-        console.error(`[Gemini ${model} Error]:`, e);
-      }
+      } catch {}
     }
   }
 
-  // 2. Groq Fallback
+  // 2. Groq LLaMA 3.3
   if (groqKey) {
-    try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${groqKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.2,
-          max_tokens: 300,
-        }),
-        signal: AbortSignal.timeout(5000),
-      });
+    const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+    for (const model of groqModels) {
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.1,
+            max_tokens: 350,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        const reply = data.choices?.[0]?.message?.content?.trim();
-        if (reply) return cleanResponse(reply, userQuestion);
-      }
-    } catch (e) {
-      console.error('[Groq Error]:', e);
+        if (res.ok) {
+          const data = await res.json();
+          const reply = data.choices?.[0]?.message?.content?.trim();
+          if (reply) return cleanResponse(reply, userQuestion);
+        }
+      } catch {}
     }
   }
 
-  return `We assist shoppers with questions regarding our store and products. Please feel free to ask about specific items or policies!`;
+  return cleanKnowledge
+    ? `Based on our store policies: ${cleanKnowledge.substring(0, 180)}...`
+    : `Hello! I'm ${botName}. How can I assist you with our store today?`;
 }
 
 export async function POST(req: Request) {
@@ -139,7 +149,7 @@ export async function POST(req: Request) {
 
     if (!userMessage) {
       return NextResponse.json(
-        { reply: 'How can I help you today?', response: 'How can I help you today?' },
+        { reply: 'How can I assist you today?', response: 'How can I assist you today?' },
         { headers: corsHeaders }
       );
     }

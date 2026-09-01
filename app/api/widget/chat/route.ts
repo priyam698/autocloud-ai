@@ -11,7 +11,7 @@ function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_KEY ||
     '';
-  return createClient(url, key);
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 const corsHeaders = {
@@ -24,78 +24,101 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-async function askAI(
-  userQuestion: string,
-  knowledge: string,
-  botName: string
-): Promise<string> {
+function cleanResponse(raw: string, userQ: string): string {
+  let text = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<\/?think>/gi, '')
+    .replace(/^```[a-z]*\n?/i, '')
+    .replace(/\n?```$/i, '')
+    .replace(/^[:*#>\s"-]+/, '')
+    .trim();
+
+  if (text.toLowerCase().startsWith(userQ.toLowerCase())) {
+    text = text.slice(userQ.length).trim();
+  }
+  return text;
+}
+
+async function askAI(userQuestion: string, knowledge: string, botName: string): Promise<string> {
   const cleanKnowledge = (knowledge || '').trim();
+  const lowerQ = userQuestion.toLowerCase().trim();
+
+  if (['hi', 'hello', 'hey', 'start', 'hola', 'help'].includes(lowerQ)) {
+    return `Hello! I'm ${botName}. How can I assist you today? Feel free to ask about our store products, pricing, or policies.`;
+  }
+
   const geminiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim();
 
-  const prompt = `You are ${botName}, an intelligent customer support assistant.
+  const prompt = `You are ${botName}, a customer support representative for our store.
 
-STORE KNOWLEDGE & POLICIES:
-${cleanKnowledge || 'We assist shoppers with inquiries regarding our store, products, and policies.'}
+STORE INFORMATION & RULES:
+${cleanKnowledge || 'We assist customers with questions regarding our store, products, and policies.'}
 
 CUSTOMER QUESTION:
 "${userQuestion}"
 
 INSTRUCTIONS:
-1. Answer directly in 1-2 polite, helpful sentences strictly using the Store Knowledge above.
-2. If the question asks for something not mentioned in the store knowledge, state clearly that it is not available or ask them to email support at priyamrana069@gmail.com.
-3. Match the exact language of the customer.
-4. Output only the final response for the customer.`;
+1. Answer the customer's question directly in 1-2 polite, helpful sentences strictly using the Store Information above.
+2. If the user asks for an item, price, or policy NOT mentioned in the store information, state politely that it is not available or ask them to contact support.
+3. Match the language of the customer.
+4. Output ONLY the response for the customer. Do not repeat instructions or print raw guideline headers.`;
 
+  // 1. Google Gemini
   if (geminiKey) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 250 },
-          }),
-          signal: AbortSignal.timeout(6000),
+    const models = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+    for (const model of models) {
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.2, maxOutputTokens: 250 },
+            }),
+            signal: AbortSignal.timeout(5000),
+          }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          if (rawReply) return cleanResponse(rawReply, userQuestion);
         }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (reply) return reply;
-      }
-    } catch {}
+      } catch {}
+    }
   }
 
+  // 2. Groq (Llama 3.3 High Speed)
   if (groqKey) {
-    try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${groqKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.2,
-          max_tokens: 250,
-        }),
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const reply = data.choices?.[0]?.message?.content?.trim();
-        if (reply) return reply;
-      }
-    } catch {}
+    const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+    for (const model of groqModels) {
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.2,
+            max_tokens: 250,
+          }),
+          signal: AbortSignal.timeout(4500),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const rawReply = data.choices?.[0]?.message?.content?.trim();
+          if (rawReply) return cleanResponse(rawReply, userQuestion);
+        }
+      } catch {}
+    }
   }
 
-  return cleanKnowledge
-    ? `According to our store guidelines: ${cleanKnowledge}`
-    : `Hello! I'm ${botName}. How can I assist you today?`;
+  return `Hello! How can I assist you with our products and services today?`;
 }
 
 export async function POST(req: Request) {
@@ -106,7 +129,7 @@ export async function POST(req: Request) {
 
     if (!userMessage) {
       return NextResponse.json(
-        { reply: 'How can I assist you today?', response: 'How can I assist you today?' },
+        { reply: 'How can I help you today?', response: 'How can I help you today?' },
         { headers: corsHeaders }
       );
     }
@@ -114,6 +137,7 @@ export async function POST(req: Request) {
     const supabase = getSupabase();
     let deployment = null;
 
+    // Fetch the specific customer's instance by ID
     if (instanceId) {
       const { data } = await supabase
         .from('deployments')
@@ -123,10 +147,13 @@ export async function POST(req: Request) {
       deployment = data;
     }
 
+    // Fallback if testing without ID
     if (!deployment) {
       const { data: fallback } = await supabase
         .from('deployments')
         .select('*')
+        .eq('template_id', 'widget')
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       deployment = fallback;
@@ -139,17 +166,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (
-      deployment.status === 'expired' ||
-      (deployment.expires_at && new Date(deployment.expires_at) < new Date())
-    ) {
-      return NextResponse.json(
-        { reply: '⚠️ This chat widget subscription has expired.', response: '⚠️ This chat widget subscription has expired.' },
-        { headers: corsHeaders }
-      );
-    }
-
-    const botName = deployment.bot_name || deployment.name || 'AutoCloud Support';
+    const botName = deployment.bot_name || deployment.name || 'Store Assistant';
     const knowledge = deployment.knowledge_base || '';
 
     const reply = await askAI(userMessage, knowledge, botName);
@@ -163,7 +180,7 @@ export async function POST(req: Request) {
       { headers: corsHeaders }
     );
   } catch (err: any) {
-    console.error('[Widget Chat API Error]:', err);
+    console.error('[Widget Chat API Fatal]:', err);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500, headers: corsHeaders }

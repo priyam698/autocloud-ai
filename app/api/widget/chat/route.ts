@@ -42,37 +42,6 @@ function cleanResponse(raw: string, userQ: string): string {
   return text;
 }
 
-// Smart keyword match fallback if external AI APIs are delayed
-function extractDirectAnswer(question: string, knowledge: string, botName: string): string {
-  if (!knowledge || !knowledge.trim()) {
-    return `Hello! I'm ${botName}. How can I assist you with our store today?`;
-  }
-
-  const qWords = question.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter((w) => w.length > 2);
-  const lines = knowledge.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
-
-  let bestLine = '';
-  let maxMatches = 0;
-
-  for (const line of lines) {
-    const lLower = line.toLowerCase();
-    let matches = 0;
-    for (const word of qWords) {
-      if (lLower.includes(word)) matches++;
-    }
-    if (matches > maxMatches) {
-      maxMatches = matches;
-      bestLine = line;
-    }
-  }
-
-  if (bestLine && maxMatches > 0) {
-    return bestLine.replace(/^[-*•\s]+/, '').trim();
-  }
-
-  return `Hello! How can I assist you with our products and services today?`;
-}
-
 async function askAI(userQuestion: string, knowledge: string, botName: string): Promise<string> {
   const cleanKnowledge = (knowledge || '').trim();
   const lowerQ = userQuestion.toLowerCase().trim();
@@ -81,10 +50,13 @@ async function askAI(userQuestion: string, knowledge: string, botName: string): 
     return `Hello! I'm ${botName}. How can I assist you today? Feel free to ask about our products, pricing, or store policies.`;
   }
 
-  const geminiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
+  const geminiKey =
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_API_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim();
 
-  const prompt = `You are ${botName}, a helpful customer support representative for our store.
+  const prompt = `You are ${botName}, a helpful customer support AI for our store.
 
 STORE INFORMATION & RULES:
 ${cleanKnowledge || 'We assist customers with questions regarding our store, products, and policies.'}
@@ -93,15 +65,16 @@ CUSTOMER QUESTION:
 "${userQuestion}"
 
 INSTRUCTIONS:
-1. Answer the customer's question directly and concisely in 1-2 polite sentences using ONLY the Store Information above.
-2. State exact prices, specifications, or policies if asked.
-3. If the user asks for an item not in the store rules, politely state it is not available.
-4. Output ONLY the plain text reply.`;
+1. Answer the customer directly and thoroughly in 1-2 friendly sentences strictly based on the Store Information above.
+2. If asked about features, list the specific features mentioned in the knowledge base.
+3. If asked about pricing or policies, give the exact numbers and rules provided.
+4. If the item or topic is not in the knowledge base, politely state it is not available.
+5. Output ONLY the response for the customer.`;
 
-  // 1. Google Gemini (Fast 1.5/2.0 Flash)
+  // 1. Google Gemini
   if (geminiKey) {
-    const geminiModels = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-pro'];
-    for (const model of geminiModels) {
+    const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+    for (const model of models) {
       try {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
@@ -110,7 +83,7 @@ INSTRUCTIONS:
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{ role: 'user', parts: [{ text: prompt }] }],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 250 },
+              generationConfig: { temperature: 0.2, maxOutputTokens: 300 },
             }),
             signal: AbortSignal.timeout(6000),
           }
@@ -118,48 +91,44 @@ INSTRUCTIONS:
 
         if (res.ok) {
           const data = await res.json();
-          const rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          if (rawReply) return cleanResponse(rawReply, userQuestion);
+          const reply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          if (reply) return cleanResponse(reply, userQuestion);
         }
-      } catch (err) {
-        console.warn(`[Gemini ${model} Error]:`, err);
+      } catch (e) {
+        console.error(`[Gemini ${model} Error]:`, e);
       }
     }
   }
 
-  // 2. Groq LLaMA 3.3
+  // 2. Groq Fallback
   if (groqKey) {
-    const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
-    for (const model of groqModels) {
-      try {
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${groqKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.1,
-            max_tokens: 250,
-          }),
-          signal: AbortSignal.timeout(5000),
-        });
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${groqKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+          max_tokens: 300,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
 
-        if (res.ok) {
-          const data = await res.json();
-          const rawReply = data.choices?.[0]?.message?.content?.trim();
-          if (rawReply) return cleanResponse(rawReply, userQuestion);
-        }
-      } catch (err) {
-        console.warn(`[Groq ${model} Error]:`, err);
+      if (res.ok) {
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content?.trim();
+        if (reply) return cleanResponse(reply, userQuestion);
       }
+    } catch (e) {
+      console.error('[Groq Error]:', e);
     }
   }
 
-  // Fallback directly to the relevant rule from the database
-  return extractDirectAnswer(userQuestion, cleanKnowledge, botName);
+  return `We assist shoppers with questions regarding our store and products. Please feel free to ask about specific items or policies!`;
 }
 
 export async function POST(req: Request) {
@@ -170,7 +139,7 @@ export async function POST(req: Request) {
 
     if (!userMessage) {
       return NextResponse.json(
-        { reply: 'How can I assist you today?', response: 'How can I assist you today?' },
+        { reply: 'How can I help you today?', response: 'How can I help you today?' },
         { headers: corsHeaders }
       );
     }

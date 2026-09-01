@@ -23,14 +23,16 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (error) {
+      console.error('[Instance List Error]:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(
-      { success: true, deployments },
+      { success: true, deployments: deployments || [] },
       { headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('[Instance List Fatal]:', err);
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }

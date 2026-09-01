@@ -4,13 +4,16 @@ import { createClient } from '@supabase/supabase-js';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 45;
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
+function getSupabaseClient() {
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    'https://placeholder.supabase.co';
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_KEY ||
-    '';
+    'placeholder-key';
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
@@ -43,8 +46,8 @@ async function askAI(userQuestion: string, knowledge: string, botName: string): 
   const cleanKnowledge = (knowledge || '').trim();
   const lowerQ = userQuestion.toLowerCase().trim();
 
-  if (['hi', 'hello', 'hey', 'start', 'hola', 'help'].includes(lowerQ)) {
-    return `Hello! I'm ${botName}. How can I assist you today? Feel free to ask about our store products, pricing, or policies.`;
+  if (['hi', 'hello', 'hey', 'start', 'hola'].includes(lowerQ)) {
+    return `Hello! I'm ${botName}. How can I assist you today? Feel free to ask about our products, pricing, or store policies.`;
   }
 
   const geminiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
@@ -52,22 +55,29 @@ async function askAI(userQuestion: string, knowledge: string, botName: string): 
 
   const prompt = `You are ${botName}, a customer support representative for our store.
 
-STORE INFORMATION & RULES:
+STORE KNOWLEDGE & POLICIES:
 ${cleanKnowledge || 'We assist customers with questions regarding our store, products, and policies.'}
 
 CUSTOMER QUESTION:
 "${userQuestion}"
 
 INSTRUCTIONS:
-1. Answer the customer's question directly in 1-2 polite, helpful sentences strictly using the Store Information above.
-2. If the user asks for an item, price, or policy NOT mentioned in the store information, state politely that it is not available or ask them to contact support.
+1. Answer the customer's question directly and concisely in 1-2 polite sentences using the Store Knowledge above.
+2. If the user asks about an item, pricing, or policy NOT mentioned in the store knowledge, state politely that you don't have that info in the catalog and suggest contacting customer support.
 3. Match the language of the customer.
-4. Output ONLY the response for the customer. Do not repeat instructions or print raw guideline headers.`;
+4. Output ONLY the clean answer for the customer.`;
 
   // 1. Google Gemini
   if (geminiKey) {
-    const models = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-pro'];
-    for (const model of models) {
+    const geminiModels = [
+      'gemini-2.5-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-2.0-flash',
+      'gemini-1.5-pro'
+    ];
+
+    for (const model of geminiModels) {
       try {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
@@ -76,9 +86,9 @@ INSTRUCTIONS:
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{ role: 'user', parts: [{ text: prompt }] }],
-              generationConfig: { temperature: 0.2, maxOutputTokens: 250 },
+              generationConfig: { temperature: 0.2, maxOutputTokens: 300 },
             }),
-            signal: AbortSignal.timeout(5000),
+            signal: AbortSignal.timeout(6000),
           }
         );
         if (res.ok) {
@@ -90,7 +100,7 @@ INSTRUCTIONS:
     }
   }
 
-  // 2. Groq (Llama 3.3 High Speed)
+  // 2. Groq LLaMA 3.3
   if (groqKey) {
     const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
     for (const model of groqModels) {
@@ -105,9 +115,9 @@ INSTRUCTIONS:
             model,
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.2,
-            max_tokens: 250,
+            max_tokens: 300,
           }),
-          signal: AbortSignal.timeout(4500),
+          signal: AbortSignal.timeout(5000),
         });
         if (res.ok) {
           const data = await res.json();
@@ -118,7 +128,9 @@ INSTRUCTIONS:
     }
   }
 
-  return `Hello! How can I assist you with our products and services today?`;
+  return cleanKnowledge
+    ? `Regarding your question: based on our store rules, please refer to our store policy or contact support.`
+    : `Hello! I'm ${botName}. How can I assist you with our store today?`;
 }
 
 export async function POST(req: Request) {
@@ -129,15 +141,14 @@ export async function POST(req: Request) {
 
     if (!userMessage) {
       return NextResponse.json(
-        { reply: 'How can I help you today?', response: 'How can I help you today?' },
+        { reply: 'How can I assist you today?', response: 'How can I assist you today?' },
         { headers: corsHeaders }
       );
     }
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseClient();
     let deployment = null;
 
-    // Fetch the specific customer's instance by ID
     if (instanceId) {
       const { data } = await supabase
         .from('deployments')
@@ -147,7 +158,6 @@ export async function POST(req: Request) {
       deployment = data;
     }
 
-    // Fallback if testing without ID
     if (!deployment) {
       const { data: fallback } = await supabase
         .from('deployments')
@@ -166,7 +176,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const botName = deployment.bot_name || deployment.name || 'Store Assistant';
+    const botName = deployment.bot_name || deployment.name || 'Store Support';
     const knowledge = deployment.knowledge_base || '';
 
     const reply = await askAI(userMessage, knowledge, botName);
@@ -180,7 +190,7 @@ export async function POST(req: Request) {
       { headers: corsHeaders }
     );
   } catch (err: any) {
-    console.error('[Widget Chat API Fatal]:', err);
+    console.error('[Widget Chat Fatal]:', err);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500, headers: corsHeaders }

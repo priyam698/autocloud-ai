@@ -37,7 +37,21 @@ export async function POST(req: Request) {
     }
 
     if (typeof telegramBotToken === 'string') {
-      updatePayload.telegram_bot_token = telegramBotToken.trim();
+      const token = telegramBotToken.trim();
+      updatePayload.telegram_bot_token = token;
+      updatePayload.bot_token = token;
+
+      // Auto-register webhook with Telegram API if token is provided
+      if (token && (templateId === 'telegram' || !templateId)) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://autocloud-ai-p448.vercel.app';
+        try {
+          await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${appUrl}/api/telegram-webhook`, {
+            method: 'GET',
+          });
+        } catch (webhookErr) {
+          console.error('[Telegram setWebhook Error]:', webhookErr);
+        }
+      }
     }
 
     if (typeof knowledgeBase === 'string') {
@@ -58,10 +72,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Agent configuration updated successfully',
+      message: 'Agent configuration updated and synchronized successfully',
       instance: data,
     });
   } catch (err: any) {
+    console.error('[Configure Endpoint Fatal]:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }
 }
